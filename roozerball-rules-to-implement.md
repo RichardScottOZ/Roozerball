@@ -40,7 +40,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 ---
 
-## A. The Game Turn Sequence
+## A (cont.). The Game Turn Sequence
 
 - [ ] **T1. Clock phase** — Start period or advance clock 1 minute; advance penalty box / shaken / rest figures 1 minute; figures reaching 0:00 are eligible to return
 - [ ] **T2. Ball phase** — Fire cannon or move ball if in play but unfielded; catcher may attempt to field; non-catchers in ball's square must make skill roll to avoid ball (exception: catcher in same square protects teammates)
@@ -94,7 +94,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 ### Starting Positions & Ball Movement
 
-- [ ] **C12. Standard starting positions** — 1 bike + 1–3 skaters per team placed alternating in middle ring in sectors A, E, C, A, E, C
+- [ ] **C12. Standard starting positions** — 1 bike + 1–3 skaters per team placed alternating teams in middle ring, cycling through sectors A, E, C (i.e., Team1 in A, Team2 in E, Team1 in C, Team2 in A, Team1 in E, Team2 in C)
 - [ ] **C13. Ball firing speed** — Roll 3d6 + 12 for initial ball speed; ball moves clockwise on cannon track, 1 square per movement point
 - [ ] **C14. Ball deceleration** — Each new turn: subtract 2 from speed, slip ball down half a square; after 7 turns ball reaches gutter and is declared dead regardless of firing speed
 - [ ] **C15. Hot ball rules** — Ball in cannon track or upper ring is "hot"; adds modifiers to catcher's attempt; risk of injury
@@ -180,7 +180,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 - [ ] **E9. Tow bar** — Bike can pull up to 3 skaters; each towed skater reduces max bike speed by 1
 - [ ] **E10. Towed figure placement** — Directly behind the bike; side by side; alternative: 2 on bar + 1 pulled by towed skater (third skater can't take handoff or fight without releasing)
 - [ ] **E11. Grabbing tow bar** — Grab as bike starts moving, or end move behind already-moved bike; CANNOT grab bar of a bike that hasn't moved yet this turn
-- [ ] **E12. Towed movement** — Move at bike's speed; can let go anytime; if held for ≥ half bike's movement: skater gets bike's speed for remainder; if let go before half: only gets own max speed
+- [ ] **E12. Towed movement** — Move at bike's speed; can let go anytime; if held for ≥ half bike's movement this turn: skater gets bike's speed for remainder of that turn; if let go before half: only gets own max speed this turn
 - [ ] **E13. Towed speed bonuses** — Skaters gain all downhill bonuses the bike picks up; max towing speed with 1 skater = 16 (11+1+2+2)
 - [ ] **E14. Bike speed not recovered** — Bike doesn't get movement points back if towed skater lets go mid-move
 
@@ -362,7 +362,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 - [ ] **H6. Team roster** — 20 members: 10 skaters (6 bruisers speed 5, 4 speeders speed 7), 6 bikers (speed 2/12), 4 catchers (speed 6)
 - [ ] **H7. Stat generation** — Skill base 5 + d6 (bruiser -1 unless roll is 1); Combat base 4 + d6 (bruiser +1 unless 6, biker -2); Toughness base 5 + d6 (bruiser +1 unless 6)
-- [ ] **H8. Team building points** — 6 points per team; spend 1 to keep a roll of 6; spend 1 to reroll; if no points left, 6 reduced by 2
+- [ ] **H8. Team building points** — 6 points per team; spend 1 to keep a die result of 6 (otherwise that roll of 6 is reduced by 2 to a 4); spend 1 to reroll any die; once all 6 points are spent, any future rolls of 6 are automatically reduced by 2
 - [ ] **H9. Stat maximums** — Skill max 11, Combat max 10, Toughness max 11
 
 ### Season Play
