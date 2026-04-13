@@ -199,8 +199,8 @@ class Game:
             self._record_messages(messages)
             return PhaseResult(Phase.MOVEMENT, messages)
 
-        starting_ball_carrier = self.ball.carrier
-        starting_ball_sector = starting_ball_carrier.sector_index if starting_ball_carrier is not None else None
+        initial_carrier = self.ball.carrier
+        initial_sector = initial_carrier.sector_index if initial_carrier is not None else None
 
         for figure in self.board.figures_in_initiative_order(self.current_initiative_sector):
             if not figure.is_on_field or figure.is_out_of_play or figure.has_moved:
@@ -229,7 +229,7 @@ class Game:
                 if figure.has_ball:
                     messages.extend(self._update_ball_carrier_progress(figure, origin, destination))
 
-        messages.extend(self._enforce_ball_carrier_movement(starting_ball_carrier, starting_ball_sector))
+        messages.extend(self._enforce_ball_carrier_movement(initial_carrier, initial_sector))
         self._record_messages(messages)
         return PhaseResult(Phase.MOVEMENT, messages)
 
@@ -500,8 +500,8 @@ class Game:
 
     def _enforce_ball_carrier_movement(
         self,
-        starting_carrier: Any,
-        starting_sector: Optional[int],
+        initial_carrier: Any,
+        initial_sector: Optional[int],
     ) -> List[str]:
         """Enforce Rule B2 after movement resolution.
 
@@ -514,26 +514,26 @@ class Game:
             A list of status messages describing a legal goal-sector hold or the
             dead-ball outcome. An empty list means no follow-up message was needed.
         """
-        if starting_carrier is None or self.ball.carrier is not starting_carrier:
+        if initial_carrier is None or self.ball.carrier is not initial_carrier:
             return []
 
-        if not starting_carrier.has_ball:
+        if not initial_carrier.has_ball:
             return []
 
-        current_square = self.board.find_square_of_figure(starting_carrier)
+        current_square = self.board.find_square_of_figure(initial_carrier)
         if current_square is None:
             return []
 
-        if starting_sector is not None and current_square.sector_index != starting_sector:
+        if initial_sector is not None and current_square.sector_index != initial_sector:
             self.ball.stationary_goal_turns = 0
             return []
 
-        is_attacking_goal = current_square.is_goal and current_square.goal_side == self.opponent_side(starting_carrier.team)
+        is_attacking_goal = current_square.is_goal and current_square.goal_side == self.opponent_side(initial_carrier.team)
         if is_attacking_goal:
             self.ball.stationary_goal_turns += 1
             if self.ball.stationary_goal_turns <= 2:
                 return [
-                    f"{starting_carrier.name} holds in the goal sector for a scoring attempt "
+                    f"{initial_carrier.name} holds in the goal sector for a scoring attempt "
                     f"({self.ball.stationary_goal_turns}/2)."
                 ]
 
