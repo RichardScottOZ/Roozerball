@@ -444,21 +444,15 @@ class Game:
 
     def _attempt_stand(self, figure: Any) -> List[str]:
         if getattr(figure, "auto_stand_next_turn", False):
-            figure.needs_stand_up = False
-            figure.auto_stand_next_turn = False
             figure.has_moved = True
-            if figure.status == FigureStatus.FALLEN:
-                figure.status = FigureStatus.STANDING
+            self._complete_stand_up(figure)
             return [f"{figure.name} recovers and automatically stands."]
 
         modifier = self._standing_modifier(figure)
         result = dice.skill_check(figure.skill, modifier)
         figure.has_moved = True
         if result.success:
-            figure.needs_stand_up = False
-            figure.auto_stand_next_turn = False
-            if figure.status == FigureStatus.FALLEN:
-                figure.status = FigureStatus.STANDING
+            self._complete_stand_up(figure)
             return [f"{figure.name} stands up ({result.roll} vs {result.target})."]
 
         injury = dice.roll_injury_dice(fatality=False)
@@ -469,6 +463,13 @@ class Game:
         if injury.injury_type == "none":
             messages.append(f"{figure.name} appears uninjured and will stand automatically next turn.")
         return messages
+
+    @staticmethod
+    def _complete_stand_up(figure: Any) -> None:
+        figure.needs_stand_up = False
+        figure.auto_stand_next_turn = False
+        if figure.status == FigureStatus.FALLEN:
+            figure.status = FigureStatus.STANDING
 
     def _return_ready_figures(self) -> List[str]:
         messages: List[str] = []
