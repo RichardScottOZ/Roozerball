@@ -16,7 +16,7 @@ It is still a work in progress, but it is absolutely at the point where you can 
 
 ## Requirements
 
-- Python 3.11+ recommended
+- Python 3.11+ recommended (and the current codebase is tested here with modern type-hint syntax)
 - Tkinter available in your Python install for the GUI
 
 No third-party Python packages are currently required.

@@ -503,6 +503,13 @@ class Game:
         starting_carrier: Any,
         starting_sector: Optional[int],
     ) -> List[str]:
+        """Enforce Rule B2 after movement resolution.
+
+        Returns no messages when there is no continuing carrier to check or when
+        the carrier advanced into a new sector. A carrier may remain in the
+        attacking goal sector for up to two consecutive turns to complete a
+        scoring attempt; otherwise the ball goes dead immediately.
+        """
         if starting_carrier is None or self.ball.carrier is not starting_carrier:
             return []
 

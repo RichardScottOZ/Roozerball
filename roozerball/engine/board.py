@@ -369,16 +369,7 @@ class Board:
 
         while queue:
             sq, cost = queue.popleft()
-            adjacent_squares = [
-                *[
-                    candidate
-                    for candidate in self.sectors[sq.sector_index].all_squares()
-                    if abs(candidate.ring.value - sq.ring.value) == 1
-                    and candidate.ring != Ring.CANNON
-                ],
-                *self.sectors[self.next_sector(sq.sector_index)].rings.get(sq.ring, []),
-            ]
-            for adj in adjacent_squares:
+            for adj in self._counterclockwise_adjacent_squares(sq):
                 if adj.ring == Ring.CANNON:
                     continue  # Rule C7
                 step_cost = 1
@@ -393,6 +384,17 @@ class Board:
                         results.append((adj, new_cost))
 
         return results
+
+    def _counterclockwise_adjacent_squares(self, square: Square) -> List[Square]:
+        """Return legal movement adjacencies while preventing clockwise travel."""
+        same_sector_ring_changes = [
+            candidate
+            for candidate in self.sectors[square.sector_index].all_squares()
+            if abs(candidate.ring.value - square.ring.value) == 1
+            and candidate.ring != Ring.CANNON
+        ]
+        forward_sector_squares = self.sectors[self.next_sector(square.sector_index)].rings.get(square.ring, [])
+        return [*same_sector_ring_changes, *forward_sector_squares]
 
     def _place_team_starting_figures(
         self,
