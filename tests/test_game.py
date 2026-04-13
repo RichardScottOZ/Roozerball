@@ -97,7 +97,7 @@ class GamePhaseTests(unittest.TestCase):
         self.assertIn("failed to move into a new sector", " ".join(result.messages))
         self.assertEqual(self.game.ball.state, BallState.DEAD)
 
-    def test_ball_carrier_can_hold_goal_sector_for_two_turns(self) -> None:
+    def test_ball_carrier_can_hold_goal_sector_for_up_to_two_turns(self) -> None:
         figure = self.game.home_team.active_figures[0]
         self.game.board.clear_all_figures()
         self.game.board.clear_figure_positions(self.game.all_figures(include_benched=True))

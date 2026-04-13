@@ -200,7 +200,7 @@ class Game:
             return PhaseResult(Phase.MOVEMENT, messages)
 
         starting_ball_carrier = self.ball.carrier
-        starting_ball_sector = getattr(starting_ball_carrier, "sector_index", None)
+        starting_ball_sector = starting_ball_carrier.sector_index if starting_ball_carrier is not None else None
 
         for figure in self.board.figures_in_initiative_order(self.current_initiative_sector):
             if not figure.is_on_field or figure.is_out_of_play or figure.has_moved:
@@ -524,8 +524,8 @@ class Game:
             self.ball.stationary_goal_turns = 0
             return []
 
-        attacking_goal = current_square.is_goal and current_square.goal_side == self.opponent_side(starting_carrier.team)
-        if attacking_goal:
+        is_attacking_goal = current_square.is_goal and current_square.goal_side == self.opponent_side(starting_carrier.team)
+        if is_attacking_goal:
             self.ball.stationary_goal_turns += 1
             if self.ball.stationary_goal_turns <= 2:
                 return [
