@@ -36,6 +36,7 @@ PHASE_ORDER = [
     Phase.COMBAT,
     Phase.SCORING,
 ]
+MAX_LOG_ENTRIES = 500
 
 
 @dataclass
@@ -144,8 +145,11 @@ class Game:
         if self.time_remaining <= 0:
             if self.current_period >= NUM_PERIODS:
                 self.game_over = True
-                winner = self.leading_team_name()
-                messages.append(f"Game over. Winner: {winner}.")
+                result = self.match_result()
+                if result == "Draw":
+                    messages.append("Game over. Match ended in a draw.")
+                else:
+                    messages.append(f"Game over. Winner: {result}.")
             else:
                 self.current_period += 1
                 self.time_remaining = PERIOD_LENGTH
@@ -364,7 +368,7 @@ class Game:
     def goal_sector_for_team(self, side: TeamSide) -> int:
         return self.board.visitor_goal_sector if side == TeamSide.HOME else self.board.home_goal_sector
 
-    def leading_team_name(self) -> str:
+    def match_result(self) -> str:
         if self.home_team.score == self.visitor_team.score:
             return "Draw"
         return self.home_team.name if self.home_team.score > self.visitor_team.score else self.visitor_team.name
@@ -587,6 +591,8 @@ class Game:
 
     def _log(self, message: str) -> None:
         self.log.append(message)
+        if len(self.log) > MAX_LOG_ENTRIES:
+            del self.log[:-MAX_LOG_ENTRIES]
 
     @staticmethod
     def _sector_gap(first: int, second: int) -> int:
