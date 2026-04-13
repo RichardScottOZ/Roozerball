@@ -11,6 +11,7 @@ from roozerball.engine.constants import (
     Ring, SECTORS, SQUARES_PER_RING, SLOTS_INCLINE, SLOTS_FLOOR,
     TeamSide, FigureType, FigureStatus,
     DOWNHILL_CONSECUTIVE, UPHILL_CONSECUTIVE_EXTRA, STARTING_SECTOR_CYCLE,
+    NUM_SECTORS,
 )
 
 
@@ -391,7 +392,7 @@ class Board:
     ) -> None:
         sector_offset = 0 if team_side == TeamSide.HOME else 6
         placements = [
-            ((cycle + sector_offset) % len(SECTORS), index % SQUARES_PER_RING[Ring.MIDDLE])
+            ((cycle + sector_offset) % NUM_SECTORS, index % SQUARES_PER_RING[Ring.MIDDLE])
             for index, cycle in enumerate(STARTING_SECTOR_CYCLE * 4)
         ]
         for figure, (sector_index, position) in zip(figures, placements):

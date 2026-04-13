@@ -280,8 +280,10 @@ class RoozerballApp(tk.Tk if tk is not None else object):
             if square is None:
                 continue
             x, y = self._slot_center(square, figure.slot_index or 0)
-            color = TEAM_COLORS[figure.team.value]
-            label = FIGURE_LABELS.get(figure.figure_type.value, figure.figure_type.value[0].upper())
+            color = TEAM_COLORS.get(figure.team.value, "#6b7280")
+            figure_type = figure.figure_type.value
+            fallback_label = figure_type[0].upper() if figure_type else "?"
+            label = FIGURE_LABELS.get(figure_type, fallback_label)
 
             item = self.canvas.create_oval(x - 14, y - 14, x + 14, y + 14, fill=color, outline="white", width=2)
             self.canvas.create_text(x, y, text=label, fill="white", font=("Helvetica", 10, "bold"))

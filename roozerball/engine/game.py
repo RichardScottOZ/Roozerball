@@ -592,7 +592,7 @@ class Game:
     def _log(self, message: str) -> None:
         self.log.append(message)
         if len(self.log) > MAX_LOG_ENTRIES:
-            del self.log[:-MAX_LOG_ENTRIES]
+            self.log = self.log[-MAX_LOG_ENTRIES:]
 
     @staticmethod
     def _sector_gap(first: int, second: int) -> int:
