@@ -509,6 +509,10 @@ class Game:
         the carrier advanced into a new sector. A carrier may remain in the
         attacking goal sector for up to two consecutive turns to complete a
         scoring attempt; otherwise the ball goes dead immediately.
+
+        Returns:
+            A list of status messages describing a legal goal-sector hold or the
+            dead-ball outcome. An empty list means no follow-up message was needed.
         """
         if starting_carrier is None or self.ball.carrier is not starting_carrier:
             return []

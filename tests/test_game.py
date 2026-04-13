@@ -166,9 +166,10 @@ class GamePhaseTests(unittest.TestCase):
         self.game.board.place_figure(figure, 0, Ring.MIDDLE, 0)
 
         options = self.game.movement_options(figure)
+        clockwise_sector = self.game.board.prev_sector(0)
 
         self.assertTrue(options)
-        self.assertFalse(any(square.sector_index == 11 for square in options))
+        self.assertFalse(any(square.sector_index == clockwise_sector for square in options))
 
 
 if __name__ == "__main__":
