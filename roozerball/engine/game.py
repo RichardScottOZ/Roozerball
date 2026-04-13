@@ -70,6 +70,7 @@ class Game:
         self.game_over = False
         self.field_reset_pending = False
         self.log: List[str] = []
+        self.turn_penalties: List[PenaltyEvent] = []
         self.last_phase_result: Optional[PhaseResult] = None
 
         self.setup_match()
@@ -135,6 +136,7 @@ class Game:
             messages.append(f"Clock advances to {self.time_remaining}:00 in period {self.current_period}.")
         else:
             messages.append(f"Period {self.current_period} starts at {self.time_remaining}:00.")
+        self.turn_penalties = []
 
         for figure in self.all_figures(include_benched=True):
             figure.reset_turn()
@@ -276,7 +278,12 @@ class Game:
                 distance=0,
             )
             messages.extend(scoring_attempt.messages)
-            negated, negation_message = check_scoring_penalties([])
+            offense_penalties = [
+                event
+                for event in self.turn_penalties
+                if event.detected and event.figure.team == figure.team
+            ]
+            negated, negation_message = check_scoring_penalties(offense_penalties)
             if scoring_attempt.success and not negated:
                 self.team_for_side(figure.team).add_score(1)
                 messages.append(f"{figure.name} scores for {figure.team.value}!")
@@ -546,6 +553,7 @@ class Game:
 
     def _enforce_penalty(self, event: PenaltyEvent) -> str:
         figure = event.figure
+        self.turn_penalties.append(event)
         message = self.penalties.enforce_penalty(event)
         self._remove_from_board(figure)
         team = self.team_for_side(figure.team)
