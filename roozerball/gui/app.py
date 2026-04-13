@@ -41,6 +41,7 @@ SLOT_OFFSETS = {
     4: [(-12, -10), (12, -10), (-12, 10), (12, 10)],
     6: [(-18, -10), (0, -10), (18, -10), (-18, 10), (0, 10), (18, 10)],
 }
+COMBAT_KEYWORDS = ("Brawl:", "Assault:", "Swoop:")
 
 
 class RoozerballApp(tk.Tk if tk is not None else object):
@@ -347,7 +348,7 @@ class RoozerballApp(tk.Tk if tk is not None else object):
             combat_lines = [line for line in result.messages if line]
             if combat_lines:
                 return "\n".join(combat_lines[-3:])
-        recent = [entry for entry in reversed(self.game.log) if "Brawl:" in entry or "Assault:" in entry or "Swoop:" in entry]
+        recent = [entry for entry in reversed(self.game.log) if any(keyword in entry for keyword in COMBAT_KEYWORDS)]
         if recent:
             return recent[0]
         return "No combat resolved yet"

@@ -37,6 +37,8 @@ PHASE_ORDER = [
     Phase.SCORING,
 ]
 MAX_LOG_ENTRIES = 500
+BIKER_SCORING_INTERFERENCE_BASE_PENALTY = 3
+BIKER_SCORING_INTERFERENCE_PER_OPPONENT = 3
 
 
 @dataclass
@@ -211,6 +213,8 @@ class Game:
             if current_square is None:
                 continue
 
+            # Backwards compatibility for callers/tests that set status directly
+            # without calling Figure.fall().
             if figure.status == FigureStatus.FALLEN and not getattr(figure, "needs_stand_up", False):
                 figure.needs_stand_up = True
             if getattr(figure, "needs_stand_up", False):
@@ -773,7 +777,9 @@ class Game:
                 ball_sector=self.ball.sector_index,
                 during_scoring=True,
             )
-            event.minutes = 3 + (3 * max(1, standing_opponents))
+            event.minutes = BIKER_SCORING_INTERFERENCE_BASE_PENALTY + (
+                BIKER_SCORING_INTERFERENCE_PER_OPPONENT * max(1, standing_opponents)
+            )
             if event.detected:
                 self._enforce_penalty(event)
             events.append(event)
