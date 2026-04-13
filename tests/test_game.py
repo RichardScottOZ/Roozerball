@@ -138,6 +138,27 @@ class GamePhaseTests(unittest.TestCase):
         self.assertEqual(self.game.ball.state, BallState.DEAD)
         self.assertFalse(self.game.field_reset_pending)
 
+    def test_successful_goal_still_resets_the_field(self) -> None:
+        figure = self.game.home_team.active_figures[0]
+        self.game.board.clear_all_figures()
+        self.game.board.clear_figure_positions(self.game.all_figures(include_benched=True))
+        self.game.board.place_figure(figure, self.game.board.visitor_goal_sector, Ring.UPPER, 0)
+        self.game.ball.state = BallState.FIELDED
+        self.game.ball.carrier = figure
+        self.game.ball.sector_index = figure.sector_index
+        self.game.ball.ring = figure.ring
+        self.game.ball.position = figure.square_position
+        figure.pick_up_ball()
+
+        with patch("roozerball.engine.scoring.dice.roll_2d6", return_value=2):
+            result = self.game.execute_scoring_phase()
+
+        self.assertIn("scores for home", " ".join(result.messages))
+        self.assertIn("Scoring/dead-ball reset", " ".join(result.messages))
+        self.assertEqual(self.game.home_team.score, 1)
+        self.assertEqual(self.game.ball.state, BallState.NOT_IN_PLAY)
+        self.assertFalse(self.game.field_reset_pending)
+
     def test_movement_options_do_not_offer_clockwise_destinations(self) -> None:
         figure = self.game.home_team.active_figures[0]
         self.game.board.clear_all_figures()

@@ -647,5 +647,4 @@ class Game:
             for candidate, cost in self.board.squares_in_range(square, figure.speed, figure.figure_type)
             if candidate.has_space_for(figure.figure_type)
             and candidate.controlling_team() not in (self.opponent_side(figure.team),)
-            and not (figure.is_biker and candidate.is_goal)
         ]
