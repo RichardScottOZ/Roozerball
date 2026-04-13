@@ -180,8 +180,7 @@ class Game:
             messages.extend(self._resolve_ball_path(visited))
             self.penalties.update_referee_positions(self.ball.sector_index)
             if self.ball.state == BallState.DEAD:
-                self.field_reset_pending = True
-                messages.append("Ball is dead; field reset queued.")
+                messages.append("Ball is dead; teams hold their places for the next cannon blast.")
 
         self._record_messages(messages)
         return PhaseResult(Phase.BALL, messages)
@@ -199,6 +198,9 @@ class Game:
             messages.append("No initiative sector available.")
             self._record_messages(messages)
             return PhaseResult(Phase.MOVEMENT, messages)
+
+        starting_ball_carrier = self.ball.carrier
+        starting_ball_sector = getattr(starting_ball_carrier, "sector_index", None)
 
         for figure in self.board.figures_in_initiative_order(self.current_initiative_sector):
             if not figure.is_on_field or figure.is_out_of_play or figure.has_moved:
@@ -227,6 +229,7 @@ class Game:
                 if figure.has_ball:
                     messages.extend(self._update_ball_carrier_progress(figure, origin, destination))
 
+        messages.extend(self._enforce_ball_carrier_movement(starting_ball_carrier, starting_ball_sector))
         self._record_messages(messages)
         return PhaseResult(Phase.MOVEMENT, messages)
 
@@ -491,10 +494,40 @@ class Game:
             if self.ball.is_activated:
                 self.ball.laps_since_activation += 1
                 if self.ball.check_three_lap_limit():
-                    self.field_reset_pending = True
                     messages.append("Three-lap limit reached; dead ball.")
                     break
         return messages
+
+    def _enforce_ball_carrier_movement(
+        self,
+        starting_carrier: Any,
+        starting_sector: Optional[int],
+    ) -> List[str]:
+        if starting_carrier is None or self.ball.carrier is not starting_carrier:
+            return []
+
+        if not starting_carrier.has_ball:
+            return []
+
+        current_square = self.board.find_square_of_figure(starting_carrier)
+        if current_square is None:
+            return []
+
+        if starting_sector is not None and current_square.sector_index != starting_sector:
+            self.ball.stationary_goal_turns = 0
+            return []
+
+        attacking_goal = current_square.is_goal and current_square.goal_side == self.opponent_side(starting_carrier.team)
+        if attacking_goal:
+            self.ball.stationary_goal_turns += 1
+            if self.ball.stationary_goal_turns <= 2:
+                return [
+                    f"{starting_carrier.name} holds in the goal sector for a scoring attempt "
+                    f"({self.ball.stationary_goal_turns}/2)."
+                ]
+
+        self.ball.declare_dead()
+        return ["Dead ball: the carrier failed to move into a new sector."]
 
     def _apply_injury_result(self, figure: Any, injury: Any) -> List[str]:
         messages: List[str] = [f"{figure.name}: {injury.details}"]
@@ -607,4 +640,5 @@ class Game:
             for candidate, cost in self.board.squares_in_range(square, figure.speed, figure.figure_type)
             if candidate.has_space_for(figure.figure_type)
             and candidate.controlling_team() not in (self.opponent_side(figure.team),)
+            and not (figure.is_biker and candidate.is_goal)
         ]

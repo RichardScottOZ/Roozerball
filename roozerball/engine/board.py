@@ -369,7 +369,16 @@ class Board:
 
         while queue:
             sq, cost = queue.popleft()
-            for adj in self.get_adjacent_squares(sq):
+            adjacent_squares = [
+                *[
+                    candidate
+                    for candidate in self.sectors[sq.sector_index].all_squares()
+                    if abs(candidate.ring.value - sq.ring.value) == 1
+                    and candidate.ring != Ring.CANNON
+                ],
+                *self.sectors[self.next_sector(sq.sector_index)].rings.get(sq.ring, []),
+            ]
+            for adj in adjacent_squares:
                 if adj.ring == Ring.CANNON:
                     continue  # Rule C7
                 step_cost = 1
