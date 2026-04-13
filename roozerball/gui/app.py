@@ -67,20 +67,11 @@ class RoozerballApp(tk.Tk if tk is not None else object):
 
         controls = ttk.Frame(self, padding=8)
         controls.grid(row=0, column=0, columnspan=2, sticky="ew")
-        controls.columnconfigure(6, weight=1)
+        controls.columnconfigure(3, weight=1)
 
         ttk.Button(controls, text="Next Phase", command=self.next_phase).grid(row=0, column=0, padx=4)
         ttk.Button(controls, text="Play Turn", command=self.play_turn).grid(row=0, column=1, padx=4)
         ttk.Button(controls, text="New Match", command=self.new_match).grid(row=0, column=2, padx=4)
-        ttk.Label(controls, text="Mode").grid(row=0, column=3, padx=(16, 4))
-        self.mode_var = tk.StringVar(value="Computer vs Computer")
-        ttk.Combobox(
-            controls,
-            textvariable=self.mode_var,
-            values=("Computer vs Computer", "Human vs Computer"),
-            state="readonly",
-            width=22,
-        ).grid(row=0, column=4, padx=4)
 
         summary = ttk.Frame(self, padding=8)
         summary.grid(row=1, column=1, sticky="nsew")

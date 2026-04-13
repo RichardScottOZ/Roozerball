@@ -397,7 +397,11 @@ class Board:
         ]
         for figure, (sector_index, position) in zip(figures, placements):
             if not self.place_figure(figure, sector_index, Ring.MIDDLE, position):
-                for fallback_position in range(SQUARES_PER_RING[Ring.MIDDLE]):
+                fallback_positions = [
+                    (position + offset) % SQUARES_PER_RING[Ring.MIDDLE]
+                    for offset in range(1, SQUARES_PER_RING[Ring.MIDDLE])
+                ]
+                for fallback_position in fallback_positions:
                     if self.place_figure(figure, sector_index, Ring.MIDDLE, fallback_position):
                         break
 
