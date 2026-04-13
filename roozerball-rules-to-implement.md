@@ -36,7 +36,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 - [x] **A10. Dead ball** — Ball declared dead if: rolls into gutter, dropped inside white line, or three-lap limit expires; new ball fired immediately *(ball.py: declare_dead())*
 - [ ] **A11. Goal tending prohibition** — Defense cannot goal tend; if screen set up and no shot attempted that lap, defenders must chase and make another lap before screening again
 - [x] **A12. Ball stealing** — Defense may steal the ball; stealing team must complete a lap from the steal sector to activate for their team (switches offense/defense) *(ball.py: steal())*
-- [ ] **A13. Clock stoppages** — Clock stops only: (1) after failed scoring attempt results in dead ball, (2) after a successful goal; field is reset during these pauses
+- [x] **A13. Clock stoppages** — Clock stops only: (1) after failed scoring attempt results in dead ball, (2) after a successful goal; field is reset during these pauses *(engine/game.py: Game.execute_ball_phase, Game.execute_scoring_phase)*
 
 ---
 
@@ -54,7 +54,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 ## B. Rules & Penalties
 
 - [x] **B1. Ball must remain in sight at all times** — No fakes or hidden ball tricks (automatic rule) *(penalties.py: penalty table)*
-- [ ] **B2. Ball must remain in motion** — Ball carrier must move into a new sector each turn; exception: may stay in goal sector up to 2 turns during scoring attempt; if blocked, must Assault forward/parallel square; penalty: dead ball (automatic rule)
+- [x] **B2. Ball must remain in motion** — Ball carrier must move into a new sector each turn; exception: may stay in goal sector up to 2 turns during scoring attempt; if blocked, must Assault forward/parallel square; penalty: dead ball (automatic rule) *(engine/game.py: Game.execute_movement_phase, Game._enforce_ball_carrier_movement)*
 - [x] **B3. Ball may not be used as a weapon** — Penalty: 3 minutes + dead ball *(penalties.py: PENALTY_TIMES, combat.py: check_combat_penalties)*
 - [ ] **B4. Counterclockwise movement only** — Figures may never move clockwise or backwards (automatic rule); penalty: 1st offense 3 min, 2nd offense 1 period
 - [x] **B5. Max two figures stopped** — A team may have at most 2 figures stopped on track at any time; exceptions: defensive screen at activated goal (up to 5 skaters + 2 catchers), injured/unconscious/dead figures don't count; penalty: 3 min per extra figure *(penalties.py: check_stopped_figures)*
@@ -379,7 +379,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 - [ ] **I1. Unmoved figure rule** — Upright figure without cone is not considered "there" for blocking, controlling, hand-offs, or taking ball
 - [x] **I2. Penalty dice always rolled** — Regardless of whether penalty is actually called, dice are rolled for every infraction *(penalties.py: check_infraction always rolls)*
-- [ ] **I3. Dead ball field reset** — Full reset only after: successful goal or failed scoring attempt resulting in dead ball; all other dead balls: cannon fires next turn, players stay where they are
+- [x] **I3. Dead ball field reset** — Full reset only after: successful goal or failed scoring attempt resulting in dead ball; all other dead balls: cannon fires next turn, players stay where they are *(engine/game.py: Game.execute_ball_phase, Game.execute_scoring_phase)*
 - [ ] **I4. Cone marking** — Always mark moved figures with cones; absolutely key to game flow
 
 ---
