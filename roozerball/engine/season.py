@@ -18,6 +18,11 @@ BUILDING_POINTS_PER_SEASON = 4  # H12
 NEW_SEASON_POINTS = 6  # H14
 VETERAN_YEARS = 10  # H14
 MIN_GAMES_FOR_PROGRESSION = 5  # H13: 50% of 10 games
+AGING_THRESHOLD_SEASONS = 5  # H14: stat decay starts after this many seasons
+REPLACEMENT_SPEED_MIN = 3  # H12: replacement stat generation ranges
+REPLACEMENT_SPEED_MAX = 8
+REPLACEMENT_STAT_MIN = 4
+REPLACEMENT_STAT_MAX = 10
 
 
 @dataclass
@@ -153,10 +158,10 @@ class Season:
             return None
 
         # Generate base stats via die rolls (2d6 for each stat, mapped to range)
-        speed = max(3, min(8, dice.roll_2d6() - 3))
-        skill = max(4, min(10, dice.roll_2d6()))
-        combat = max(4, min(10, dice.roll_2d6()))
-        toughness = max(4, min(10, dice.roll_2d6()))
+        speed = max(REPLACEMENT_SPEED_MIN, min(REPLACEMENT_SPEED_MAX, dice.roll_2d6() - 3))
+        skill = max(REPLACEMENT_STAT_MIN, min(REPLACEMENT_STAT_MAX, dice.roll_2d6()))
+        combat = max(REPLACEMENT_STAT_MIN, min(REPLACEMENT_STAT_MAX, dice.roll_2d6()))
+        toughness = max(REPLACEMENT_STAT_MIN, min(REPLACEMENT_STAT_MAX, dice.roll_2d6()))
 
         replacement = Figure(
             name=f"Replacement {figure_type.value.title()}",
@@ -203,7 +208,7 @@ class Season:
                 games = record.figure_games.get(figure.name, 0)
                 if games < MIN_GAMES_FOR_PROGRESSION:
                     continue
-                if not figure.is_on_field or figure.status.value in ('dead',):
+                if not figure.is_on_field or figure.status.value == 'dead':
                     continue
 
                 # +1 to skill, combat, or toughness (improve lowest stat)
@@ -212,14 +217,14 @@ class Season:
                     'combat': figure.base_combat,
                     'toughness': figure.base_toughness,
                 }
-                best_stat = min(stats, key=stats.get)
-                if best_stat == 'skill' and figure.base_skill < 10:
+                weakest_stat = min(stats, key=stats.get)
+                if weakest_stat == 'skill' and figure.base_skill < 10:
                     figure.base_skill += 1
                     messages.append(f"{figure.name}: +1 skill (now {figure.base_skill})")
-                elif best_stat == 'combat' and figure.base_combat < 10:
+                elif weakest_stat == 'combat' and figure.base_combat < 10:
                     figure.base_combat += 1
                     messages.append(f"{figure.name}: +1 combat (now {figure.base_combat})")
-                elif best_stat == 'toughness' and figure.base_toughness < 10:
+                elif weakest_stat == 'toughness' and figure.base_toughness < 10:
                     figure.base_toughness += 1
                     messages.append(f"{figure.name}: +1 toughness (now {figure.base_toughness})")
 
@@ -232,7 +237,7 @@ class Season:
 
                 if is_leader:
                     for stat_name in sorted(stats, key=stats.get):
-                        if stat_name == best_stat:
+                        if stat_name == weakest_stat:
                             continue
                         if stat_name == 'skill' and figure.base_skill < 10:
                             figure.base_skill += 1
@@ -292,7 +297,7 @@ class Season:
                         messages.append(f"{figure.name} continues for season {seasons + 1}!")
 
                 # Aging: veterans lose stats over time (after season 5)
-                if seasons > 5:
+                if seasons > AGING_THRESHOLD_SEASONS:
                     if figure.base_speed > 2:
                         figure.base_speed -= 1
                         messages.append(f"{figure.name}: speed drops to {figure.base_speed} (aging)")
