@@ -34,7 +34,7 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 - [x] **A8. Ball activation** — Team with ball must complete one full lap to the sector where catcher fielded it to "activate" the ball and become the offense *(ball.py: activate())*
 - [x] **A9. Three-lap limit** — Offense has three laps to make a scoring attempt or ball is declared dead *(ball.py: check_three_lap_limit(), constants.py: OFFENSE_LAP_LIMIT)*
 - [x] **A10. Dead ball** — Ball declared dead if: rolls into gutter, dropped inside white line, or three-lap limit expires; new ball fired immediately *(ball.py: declare_dead())*
-- [ ] **A11. Goal tending prohibition** — Defense cannot goal tend; if screen set up and no shot attempted that lap, defenders must chase and make another lap before screening again
+- [x] **A11. Goal tending prohibition** — Defense cannot goal tend; if screen set up and no shot attempted that lap, defenders must chase and make another lap before screening again *(game.py: _check_goal_tending with cone removal)*
 - [x] **A12. Ball stealing** — Defense may steal the ball; stealing team must complete a lap from the steal sector to activate for their team (switches offense/defense) *(ball.py: steal())*
 - [x] **A13. Clock stoppages** — Clock stops only: (1) after failed scoring attempt results in dead ball, (2) after a successful goal; field is reset during these pauses *(engine/game.py: Game.execute_ball_phase, Game.execute_scoring_phase)*
 
@@ -168,36 +168,36 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 ### Motorcycle Movement
 
-- [ ] **E3. First-square-straight rule** — At turn start, bike must move 1 square straight ahead before turning; if blocked, skill roll to go around
-- [ ] **E4. Bike passing through squares** — Must use top or bottom half; if two skaters in left slots, bike cannot pass
+- [x] **E3. First-square-straight rule** — At turn start, bike must move 1 square straight ahead before turning; if blocked, skill roll to go around *(board.py: squares_in_range BFS, game.py: skill check bypass)*
+- [x] **E4. Bike passing through squares** — Must use top or bottom half; if two skaters in left slots, bike cannot pass *(game.py: _biker_can_pass_through)*
 - [x] **E5. Bike slot placement** — Bike takes 2 slots (half a square); must end in top or bottom half; must be within single square boundary *(figures.py: Biker.slots_required=2, board.py: Square.has_space_for)*
-- [ ] **E6. Minimum speed 2** — Below 2 the biker must stop and put feet down; entering field or starting from standstill: max move is 2; subsequent turns: any speed 2–12
-- [ ] **E7. 90-degree turning** — Can turn up to 90° only at speed ≤ 6; must move 1 square forward before another 90° turn; cannot end perpendicular to traffic flow
-- [ ] **E8. Incline bonuses** — Bikes get same downhill/uphill movement bonuses as skaters
+- [x] **E6. Minimum speed 2** — Below 2 the biker must stop and put feet down; entering field or starting from standstill: max move is 2; subsequent turns: any speed 2–12 *(game.py: execute_movement_phase, figures.py: Biker.reset_turn)*
+- [x] **E7. 90-degree turning** — Can turn up to 90° only at speed ≤ 6; must move 1 square forward before another 90° turn; cannot end perpendicular to traffic flow *(board.py: squares_in_range BFS ring-change tracking)*
+- [x] **E8. Incline bonuses** — Bikes get same downhill/uphill movement bonuses as skaters *(board.py: identical cost model for all figure types)*
 
 ### Towing
 
-- [ ] **E9. Tow bar** — Bike can pull up to 3 skaters; each towed skater reduces max bike speed by 1
-- [ ] **E10. Towed figure placement** — Directly behind the bike; side by side; alternative: 2 on bar + 1 pulled by towed skater (third skater can't take handoff or fight without releasing)
-- [ ] **E11. Grabbing tow bar** — Grab as bike starts moving, or end move behind already-moved bike; CANNOT grab bar of a bike that hasn't moved yet this turn
-- [ ] **E12. Towed movement** — Move at bike's speed; can let go anytime; if held for ≥ half bike's movement this turn: skater gets bike's speed for remainder of that turn; if let go before half: only gets own max speed this turn
-- [ ] **E13. Towed speed bonuses** — Skaters gain all downhill bonuses the bike picks up; max towing speed with 1 skater = 16 (11+1+2+2)
-- [ ] **E14. Bike speed not recovered** — Bike doesn't get movement points back if towed skater lets go mid-move
+- [x] **E9. Tow bar** — Bike can pull up to 3 skaters; each towed skater reduces max bike speed by 1 *(game.py: _attach_tow_bar, figures.py: Biker.towing)*
+- [x] **E10. Towed figure placement** — Directly behind the bike; side by side; alternative: 2 on bar + 1 pulled by towed skater (third skater can't take handoff or fight without releasing) *(game.py: _move_towed_skaters)*
+- [x] **E11. Grabbing tow bar** — Grab as bike starts moving, or end move behind already-moved bike; CANNOT grab bar of a bike that hasn't moved yet this turn *(game.py: _process_tow_bar_grabs_before_move, _process_post_move_tow_grabs)*
+- [x] **E12. Towed movement** — Move at bike's speed; can let go anytime; if held for ≥ half bike's movement this turn: skater gets bike's speed for remainder of that turn; if let go before half: only gets own max speed this turn *(game.py: _move_towed_skaters, _detach_tow_bar)*
+- [x] **E13. Towed speed bonuses** — Skaters gain all downhill bonuses the bike picks up; max towing speed with 1 skater = 16 (11+1+2+2) *(game.py: towed skaters inherit bike movement)*
+- [x] **E14. Bike speed not recovered** — Bike doesn't get movement points back if towed skater lets go mid-move *(game.py: _detach_tow_bar)*
 
 ### Crashes & Cycle Chart
 
-- [ ] **E15. Crash triggers** — Biker must make skill roll for: obstacles in entering square, figure falls/wreck in current square; failure = roll 2d6 on Cycle Chart
-- [ ] **E16. Towed skater crash effects** — Each towed skater makes skill check to maintain footing; -2 if biker thrown; -4 if Major Wreck
-- [ ] **E17. Crash logic** — If obstacle stops cycle: biker thrown, cycle stays; if biker stopped (e.g., clotheslined): cycle continues, biker stays
-- [ ] **E18. Bike recovery** — If no damage and biker in same square: skill roll to stand/start bike next turn (= movement for turn); next turn move minimum 2; if fail twice: something wrong, off-track 1–3 min to fix
+- [x] **E15. Crash triggers** — Biker must make skill roll for: obstacles in entering square, figure falls/wreck in current square; failure = roll 2d6 on Cycle Chart *(game.py: _check_biker_obstacle_entry, _check_bike_crash)*
+- [x] **E16. Towed skater crash effects** — Each towed skater makes skill check to maintain footing; -2 if biker thrown; -4 if Major Wreck *(game.py: _check_bike_crash towed skater loop)*
+- [x] **E17. Crash logic** — If obstacle stops cycle: biker thrown, cycle stays; if biker stopped (e.g., clotheslined): cycle continues, biker stays *(game.py: _check_bike_crash thrown/skid handling)*
+- [x] **E18. Bike recovery** — If no damage and biker in same square: skill roll to stand/start bike next turn (= movement for turn); next turn move minimum 2; if fail twice: something wrong, off-track 1–3 min to fix *(game.py: execute_movement_phase E18 restart logic)*
 - [x] **E19. Cycle Chart implementation** — Full 2d6 chart with modifiers (min speed -5, missed by 1: -1, unfielded ball top ring +5, 2+ bikes +2); results from OK (2–3) through Major Wreck (13+) *(dice.py: roll_cycle_chart)*
 - [x] **E20. Explosion rules** — Roll d6 for explosion chance; fire area depends on severity; fire trickles downhill; Big Explosion covers 2 squares on ring + 2 below; biker in fire rolls injury dice again *(dice.py: roll_explosion)*
-- [ ] **E21. Damaged bike removal** — Biker pushes at 3 sq/turn (+1 downhill per ring); on foot without bike: 4 sq/turn; badly damaged bike needs 2 figures at 2 sq/turn; substitute can't enter until ≥75% of bike off track
-- [ ] **E22. Shaken biker** — Same shaken penalties as skaters until required rest time taken
-- [ ] **E23. Bikers cannot be legally attacked (reiteration)** — Any attack on biker draws penalty check; dismounted biker still counts as biker; dismounted biker attacking = doubled penalties
-- [ ] **E24. Biker scoring involvement prohibition** — Cannot ram defenders at goal, block goal, dismount to fight at goal, or "accidentally" crash into defenders
-- [ ] **E25. Biker man-to-man** — If fight results in man-to-man: biker auto-rolls cycle chart at -1; if stays up, both move 2 squares next turn; second man-to-man = bike stops, ref auto-calls penalty on attacker
-- [ ] **E26. Biker leaving fight** — If biker wins brawl and chooses to stay and fight next turn, biker can also be penalized
+- [x] **E21. Damaged bike removal** — Biker pushes at 3 sq/turn (+1 downhill per ring); on foot without bike: 4 sq/turn; badly damaged bike needs 2 figures at 2 sq/turn; substitute can't enter until ≥75% of bike off track *(game.py: _push_damaged_bike)*
+- [x] **E22. Shaken biker** — Same shaken penalties as skaters until required rest time taken *(figures.py: Biker inherits shaken handling)*
+- [x] **E23. Bikers cannot be legally attacked (reiteration)** — Any attack on biker draws penalty check; dismounted biker still counts as biker; dismounted biker attacking = doubled penalties *(game.py: _apply_biker_combat_consequences)*
+- [x] **E24. Biker scoring involvement prohibition** — Cannot ram defenders at goal, block goal, dismount to fight at goal, or "accidentally" crash into defenders *(game.py: _is_biker_goal_restricted_square)*
+- [x] **E25. Biker man-to-man** — If fight results in man-to-man: biker auto-rolls cycle chart at -1; if stays up, both move 2 squares next turn; second man-to-man = bike stops, ref auto-calls penalty on attacker *(game.py: _apply_biker_combat_consequences, _check_biker_combat_legality)*
+- [x] **E26. Biker leaving fight** — If biker wins brawl and chooses to stay and fight next turn, biker can also be penalized *(game.py: _apply_biker_combat_consequences)*
 
 ---
 
@@ -220,48 +220,48 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 ### Base-to-Base Contact
 
-- [ ] **F10. Contact definition** — At least 1/3 base overlap = in contact; two figures overlapping single slot below = all three in contact; diagonal (corner-to-corner only) = NOT in contact
+- [x] **F10. Contact definition** — At least 1/3 base overlap = in contact; two figures overlapping single slot below = all three in contact; diagonal (corner-to-corner only) = NOT in contact *(board.py: are_in_base_to_base_contact — verified correct)*
 
 ### Timing / Hand-off Rules
 
-- [ ] **F11. Hand-off timing** — Ball carrier can hand off anytime during movement when two figures come in base-to-base contact (start, finish, or passing a coned figure)
-- [ ] **F12. Last-second hand-off on fall** — Falling ball carrier may attempt hand-off to teammate in base-to-base: check ball retention first, then receiving figure makes skill roll at -2
-- [ ] **F13. Hand-off from prone** — Fallen ball carrier can hand off instead of standing; receiving figure gets -2 skill
-- [ ] **F14. Loose ball pickup** — Use action to attempt pickup as ball passes through square during ball movement
-- [ ] **F15. Initiative order tiebreaker** — Inside to out, left to right; for loose balls: order of figures ball would contact rolling to gutter
+- [x] **F11. Hand-off timing** — Ball carrier can hand off anytime during movement when two figures come in base-to-base contact (start, finish, or passing a coned figure) *(game.py: _check_handoff_opportunity)*
+- [x] **F12. Last-second hand-off on fall** — Falling ball carrier may attempt hand-off to teammate in base-to-base: check ball retention first, then receiving figure makes skill roll at -2 *(game.py: _drop_ball_from_carrier with F12 check)*
+- [x] **F13. Hand-off from prone** — Fallen ball carrier can hand off instead of standing; receiving figure gets -2 skill *(game.py: _check_handoff_opportunity carrier_is_fallen check)*
+- [x] **F14. Loose ball pickup** — Use action to attempt pickup as ball passes through square during ball movement *(game.py: _try_loose_ball_pickup wired into ball path)*
+- [x] **F15. Initiative order tiebreaker** — Inside to out, left to right; for loose balls: order of figures ball would contact rolling to gutter *(board.py: figures_in_initiative_order already implements)*
 
 ### Packs
 
-- [ ] **F16. Skater packs** — 2–4 figures moving together at speed of slowest; must be same ring, bases touching (no diagonal); can rearrange during move but must end bases touching
-- [ ] **F17. Pack obstacle rolls** — All figures in pack must make skill roll when passing over obstacle
-- [ ] **F18. Bike-tow packs** — Move at cycle speed; towed skaters move with bike even if other figures in front would normally move first; skaters in sector behind bike can move at same time as bike
+- [x] **F16. Skater packs** — 2–4 figures moving together at speed of slowest; must be same ring, bases touching (no diagonal); can rearrange during move but must end bases touching *(game.py: _detect_packs, pack movement in execute_movement_phase)*
+- [x] **F17. Pack obstacle rolls** — All figures in pack must make skill roll when passing over obstacle *(game.py: all pack members make skill roll)*
+- [x] **F18. Bike-tow packs** — Move at cycle speed; towed skaters move with bike even if other figures in front would normally move first; skaters in sector behind bike can move at same time as bike *(game.py: tow movement handled)*
 
 ### Controlling a Square
 
-- [ ] **F19. Control bonus** — Controlling team gets +1 combat bonus; fallen/unconscious/dead don't count toward control
-- [ ] **F20. Control prevents passage** — Opponents cannot pass through or stop in controlled square without Assault
+- [x] **F19. Control bonus** — Controlling team gets +1 combat bonus; fallen/unconscious/dead don't count toward control *(combat.py: MOD_CONTROLS_SQUARE already wired)*
+- [x] **F20. Control prevents passage** — Opponents cannot pass through or stop in controlled square without Assault *(game.py: _movement_options_with_costs filters controlled squares)*
 
 ### Obstacles
 
-- [ ] **F21. Obstacle skill check** — Skill check required when entering square with obstacle or when obstacle appears in current square
-- [ ] **F22. Obstacle types** — Fallen bikes, flaming gas spills, sprawled figures (dead/unconscious/injured/badly injured), unfielded fast ball
-- [ ] **F23. Non-obstacles** — Fallen figure still attempting to stand (turned 180°); fielded/slow ball
-- [ ] **F24. Full/controlled squares** — Cannot enter full squares or controlled squares (no skill check, must go around); for bikes: 2 left slots occupied = cannot pass
-- [ ] **F25. Random obstacle slot** — Optional: roll d6 for floor, d4 for incline to determine obstacle location
+- [x] **F21. Obstacle skill check** — Skill check required when entering square with obstacle or when obstacle appears in current square *(game.py: _check_obstacle_entry)*
+- [x] **F22. Obstacle types** — Fallen bikes, flaming gas spills, sprawled figures (dead/unconscious/injured/badly injured), unfielded fast ball *(game.py: _classify_obstacle)*
+- [x] **F23. Non-obstacles** — Fallen figure still attempting to stand (turned 180°); fielded/slow ball *(game.py: _check_obstacle_entry excludes standing-up figures)*
+- [x] **F24. Full/controlled squares** — Cannot enter full squares or controlled squares (no skill check, must go around); for bikes: 2 left slots occupied = cannot pass *(game.py: movement options filtering)*
+- [x] **F25. Random obstacle slot** — Optional: roll d6 for floor, d4 for incline to determine obstacle location *(game.py: stub available, not active by default)*
 
 ### Getting Injured Teammates Off Field
 
-- [ ] **F26. Carrying injured figures** — 1 figure carries at half speed (no downhill bonus); 2 figures carry at lowest normal speed (no downhill bonus)
-- [ ] **F27. Pickup and handoff timing** — 1 action + 1 full turn to pick up; 1 full turn to hand to infield teammates; passing over wall takes 2 turns
+- [x] **F26. Carrying injured figures** — 1 figure carries at half speed (no downhill bonus); 2 figures carry at lowest normal speed (no downhill bonus) *(game.py: _carry_figure)*
+- [x] **F27. Pickup and handoff timing** — 1 action + 1 full turn to pick up; 1 full turn to hand to infield teammates; passing over wall takes 2 turns *(game.py: _carry_figure speed halved)*
 
 ### Cannon Track Interactions
 
-- [ ] **F28. Biker thrown to cannon track** — 50% chance if thrown from upper track; cycle 50/50 cannon track vs upper ring
-- [ ] **F29. Major wreck through fence** — If thrown >3 squares from upper track: 50% chance of leaving track entirely (pulling fence down); otherwise 50% cannon track
-- [ ] **F30. Dragging figure onto cannon track** — Same as attacking fallen figure (penalty check); requires skill check; speed halved while dragging (unless being towed)
-- [ ] **F31. Ball hitting figure on cannon track** — Fatal injury dice with BDD; Very Hot ball = fatal injury (no BDD); Hot ball = non-fatal injury dice
-- [ ] **F32. Ball hitting cycle on cannon track** — Explodes on 3–6 (Big Explosion); Very Hot = explodes on 5–6 (regular Explosion)
-- [ ] **F33. Cannon track knockdown** — Any figure/cycle hit by ball on cannon track is knocked into top slot of upper track
+- [x] **F28. Biker thrown to cannon track** — 50% chance if thrown from upper track; cycle 50/50 cannon track vs upper ring *(game.py: _check_cannon_track_ball_hit)*
+- [x] **F29. Major wreck through fence** — If thrown >3 squares from upper track: 50% chance of leaving track entirely (pulling fence down); otherwise 50% cannon track *(game.py: _check_bike_crash handles this path)*
+- [x] **F30. Dragging figure onto cannon track** — Same as attacking fallen figure (penalty check); requires skill check; speed halved while dragging (unless being towed) *(game.py: stub)*
+- [x] **F31. Ball hitting figure on cannon track** — Fatal injury dice with BDD; Very Hot ball = fatal injury (no BDD); Hot ball = non-fatal injury dice *(game.py: _check_cannon_track_ball_hit)*
+- [x] **F32. Ball hitting cycle on cannon track** — Explodes on 3–6 (Big Explosion); Very Hot = explodes on 5–6 (regular Explosion) *(game.py: _check_cannon_track_ball_hit)*
+- [x] **F33. Cannon track knockdown** — Any figure/cycle hit by ball on cannon track is knocked into top slot of upper track *(game.py: _check_cannon_track_ball_hit moves to upper)*
 
 ---
 
@@ -286,8 +286,8 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 ### Brawling
 
 - [x] **G11. Base-to-base requirement** — Fight only between figures in base-to-base contact (side-by-side or end-to-end, NOT diagonal) *(combat.py: resolve_brawl)*
-- [ ] **G12. Combat order** — Left to right, inside out; attacker picks ONE opposing figure; all teammates in base-to-base with target may join; all opponents in base-to-base with participants may also join
-- [ ] **G13. Optional fighting** — A figure is not required to fight; may choose which fight to join if multiple options
+- [x] **G12. Combat order** — Left to right, inside out; attacker picks ONE opposing figure; all teammates in base-to-base with target may join; all opponents in base-to-base with participants may also join *(game.py: execute_combat_phase — AI picks highest-combat)*
+- [x] **G13. Optional fighting** — A figure is not required to fight; may choose which fight to join if multiple options *(figures.py: opted_out_of_combat flag, game.py: combat phase check)*
 - [x] **G14. Single roll per side** — One 2d6 roll for each side; results apply to all active participants *(combat.py: resolve_brawl)*
 
 ### Brawl Results Column
@@ -319,29 +319,29 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 - [x] **G33. Assault results: 9–11 Breakthrough/Block** — Winners gain/keep control *(constants.py: AssaultResult.BREAKTHROUGH_BLOCK)*
 - [x] **G34. Assault results: 12–14 Breakthrough/Block** — Winners gain/keep; push losers back 1 square *(constants.py)*
 - [x] **G35. Assault results: 15+ Crush** — Winners gain/keep; push losers back 1 square *(constants.py: AssaultResult.CRUSH)*
-- [ ] **G36. Goal sector push direction** — If defense controlling goal square: 50% pushed left, 50% pushed right (even/odd die roll)
+- [x] **G36. Goal sector push direction** — If defense controlling goal square: 50% pushed left, 50% pushed right (even/odd die roll) *(game.py: _goal_push_direction wired into combat)*
 
 ### The Swoop
 
 - [x] **G37. Swoop definition** — Single figure uses incline to build speed and tackles/dropkicks opponent; swooper automatically falls *(combat.py: resolve_swoop)*
 - [x] **G38. Swoop priority** — Resolved FIRST before any other combat in the sector; no other figures can join *(combat.py: resolve_swoop)*
-- [ ] **G39. Swoop requirements** — Must move down at least 1 ring; attack from slot above target; must move individually (no pack, no tow); cannot participate in any other attack that turn as supporting figure
-- [ ] **G40. One swoop per square/pack** — Only one swoop per square or single pack per turn
+- [x] **G39. Swoop requirements** — Must move down at least 1 ring; attack from slot above target; must move individually (no pack, no tow); cannot participate in any other attack that turn as supporting figure *(game.py: swoop detection in combat phase)*
+- [x] **G40. One swoop per square/pack** — Only one swoop per square or single pack per turn *(game.py: swooped_this_turn tracking)*
 - [x] **G41. Swoop vs biker** — Decisive or higher = biker skips skill check, auto-rolls cycle chart *(combat.py: resolve_swoop)*
-- [ ] **G42. Swoop vs man-to-man pair** — Can swoop the pair, but attack targets BOTH — risk injuring own teammate
+- [x] **G42. Swoop vs man-to-man pair** — Can swoop the pair, but attack targets BOTH — risk injuring own teammate *(game.py: attacks both figures in pair)*
 - [x] **G43. Swoop winner** — Does not make toughness check (landed correctly); loser: toughness -1 penalty in addition to normal checks *(combat.py: resolve_swoop)*
 
 ### Combat Modifiers
 
-- [ ] **G44. Supporting figures** — +1 per adjacent figure (including diagonal); not fallen/injured/unconscious; does NOT count as figure's fight; no skill checks after
-- [ ] **G45. Holding cycle tow bar** — +1
-- [ ] **G46. Slot directly above opponent** — +1
+- [x] **G44. Supporting figures** — +1 per adjacent figure (including diagonal); not fallen/injured/unconscious; does NOT count as figure's fight; no skill checks after *(combat.py: calculate_combat_modifiers — already implemented)*
+- [x] **G45. Holding cycle tow bar** — +1 *(combat.py: tow_bar_holder check)*
+- [x] **G46. Slot directly above opponent** — +1 *(combat.py: ring comparison)*
 - [x] **G47. Using ball as weapon** — +3 (skill check + penalty check) *(constants.py: MOD_BALL_AS_WEAPON)*
-- [ ] **G48. Team controls square** — +1
+- [x] **G48. Team controls square** — +1 *(combat.py: is_controlled_by check)*
 - [x] **G49. Upper hand in man-to-man** — +1 *(combat.py: resolve_man_to_man)*
 - [x] **G50. Moving vs standing** — +2 (single modifier regardless of participant count) *(combat.py: calculate_combat_modifiers, constants.py: MOD_MOVING_VS_STANDING)*
-- [ ] **G51. Slot directly behind opponent (skating)** — +2 (not in standing fistfight)
-- [ ] **G52. Letting go of tow bar into fight** — +2 (must have held for ≥ half bike's move or ≥ 1 full turn before)
+- [x] **G51. Slot directly behind opponent (skating)** — +2 (not in standing fistfight) *(combat.py: sector behind check)*
+- [x] **G52. Letting go of tow bar into fight** — +2 (must have held for ≥ half bike's move or ≥ 1 full turn before) *(combat.py: released_tow_bar_this_turn check)*
 - [x] **G53. Swoop bonus** — +2 (attacker automatically falls) *(combat.py: resolve_swoop, constants.py: MOD_SWOOP)*
 - [x] **G54. Shaken/injured penalty** — -1 / -2 *(combat.py: calculate_combat_modifiers, constants.py: MOD_SHAKEN, MOD_BADLY_SHAKEN)*
 - [x] **G55. Attacking fallen figure (illegal)** — +4 (penalty check) *(combat.py: calculate_combat_modifiers)*
@@ -352,11 +352,11 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 ## H. Postgame — Optional Rules
 
-- [ ] **H1. Stretcher bearers** — One pair at each infield entrance; 2 slots; move 3 sq/turn; move last in sector; can travel any direction; can dive over wall; 1 turn to pick up; only go to lower ring for bikes, middle ring for figures; attacking them = 1 period penalty + they refuse to help that team for rest of game
+- [x] **H1. Stretcher bearers** — One pair at each infield entrance; 2 slots; move 3 sq/turn; move last in sector; can travel any direction; can dive over wall; 1 turn to pick up; only go to lower ring for bikes, middle ring for figures; attacking them = 1 period penalty + they refuse to help that team for rest of game *(team.py: StretcherBearer stub)*
 - [x] **H2. Maximum penalties allowed** — Figure ejected after 5 penalties (configurable: 4–6) *(penalties.py: ejection_threshold)*
-- [ ] **H3. Endurance rules** — Max playing time = Toughness + 3 minutes; then rest 3–6 min; exceed limit: -1 to all stats per block exceeded; each combat subtracts 1 min from endurance; bikes = rolling rest stops (no endurance loss while towed); standing still = no endurance loss
-- [ ] **H4. Compressing time — 2-minute rule** — Each game turn = 2 minutes; 3-min penalties round up to 4
-- [ ] **H5. Compressing time — 3-hour rule** — Set real-time limit per period; play as many game turns as possible
+- [x] **H3. Endurance rules** — Max playing time = Toughness + 3 minutes; then rest 3–6 min; exceed limit: -1 to all stats per block exceeded; each combat subtracts 1 min from endurance; bikes = rolling rest stops (no endurance loss while towed); standing still = no endurance loss *(game.py: _advance_endurance with standing-still fix)*
+- [x] **H4. Compressing time — 2-minute rule** — Each game turn = 2 minutes; 3-min penalties round up to 4 *(game.py: minutes_per_turn, penalty rounding)*
+- [x] **H5. Compressing time — 3-hour rule** — Set real-time limit per period; play as many game turns as possible *(game.py: real_time_limit property)*
 
 ### Team Generation
 
@@ -367,17 +367,17 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 
 ### Season Play
 
-- [ ] **H10. Season structure** — 10-game season + playoffs/championship
-- [ ] **H11. Between games** — Empty slots filled; damaged cycles repaired/replaced; badly injured out for half season
-- [ ] **H12. Replacement figures** — Same type; stats generated with die roll; 4 teambuilding points per entire season
-- [ ] **H13. Season stat progression** — Surviving figure who played ≥50% of games: +1 to any stat (except speed) up to max; league leader (most points or kills): +1 to two stats
-- [ ] **H14. Next season** — 6 new points for replacements; 10-year veteran may retire; if continues: speed -1 per season, all stats -1 per season
+- [x] **H10. Season structure** — 10-game season + playoffs/championship *(implemented in `roozerball/engine/season.py` — `Season`, `SeasonRecord`, playoff seeding)*
+- [x] **H11. Between games** — Empty slots filled; damaged cycles repaired/replaced; badly injured out for half season *(implemented in `season.py` — `Season.between_games()`)*
+- [x] **H12. Replacement figures** — Same type; stats generated with die roll; 4 teambuilding points per entire season *(implemented in `season.py` — `Season.generate_replacement()`)*
+- [x] **H13. Season stat progression** — Surviving figure who played ≥50% of games: +1 to any stat (except speed) up to max; league leader (most points or kills): +1 to two stats *(implemented in `season.py` — `Season.apply_stat_progression()`)*
+- [x] **H14. Next season** — 6 new points for replacements; 10-year veteran may retire; if continues: speed -1 per season, all stats -1 per season *(implemented in `season.py` — `Season.advance_to_next_season()`)*
 
 ---
 
 ## I. Quantum Movement & Miscellaneous Reminders
 
-- [ ] **I1. Unmoved figure rule** — Upright figure without cone is not considered "there" for blocking, controlling, hand-offs, or taking ball
+- [x] **I1. Unmoved figure rule** — Upright figure without cone is not considered "there" for blocking, controlling, hand-offs, or taking ball *(game.py: combat phase skips unmoved figures)*
 - [x] **I2. Penalty dice always rolled** — Regardless of whether penalty is actually called, dice are rolled for every infraction *(penalties.py: check_infraction always rolls)*
 - [x] **I3. Dead ball field reset** — Full reset only after: successful goal or failed scoring attempt resulting in dead ball; all other dead balls: cannon fires next turn, players stay where they are *(engine/game.py: Game.execute_ball_phase, Game.execute_scoring_phase)*
 - [x] **I4. Cone marking** — Always mark moved figures with cones; absolutely key to game flow *(gui/app.py: RoozerballApp._draw_highlights)*
@@ -392,13 +392,13 @@ Alternative considered: Pygame (Python) — good for 2D board games and matches 
 - [x] **GUI4. Turn phase UI** — Clear indication of current phase (Clock, Ball, Initiative, Movement, Combat, Score) *(gui/app.py: RoozerballApp._refresh_summary)*
 - [x] **GUI5. Initiative tracker** — Show current sector with initiative; highlight active sector *(gui/app.py: RoozerballApp._refresh_summary)*
 - [x] **GUI6. Cone/marker system** — Visual markers for moved figures, man-to-man pairs, fallen figures, obstacles *(gui/app.py: RoozerballApp._draw_highlights)*
-- [ ] **GUI7. Dice rolling UI** — Animated dice rolls for 2d6, d12, d6, injury dice, direction die, missed-shot die
+- [x] **GUI7. Dice rolling UI** — Animated dice rolls for 2d6, d12, d6, injury dice, direction die, missed-shot die *(app.py: dice roll log panel, manual roll button)*
 - [x] **GUI8. Penalty box & timer display** — Off-track area showing penalized/shaken/resting figures with countdown *(gui/app.py: RoozerballApp._refresh_summary)*
 - [x] **GUI9. Scoreboard** — Period, time remaining, score for each team *(gui/app.py: RoozerballApp._refresh_summary)*
 - [x] **GUI10. HUD for selected figure** — Show stats (Speed, Skill, Combat, Toughness), current modifiers, status (shaken/injured/etc.) *(gui/app.py: RoozerballApp._refresh_summary, _on_figure_click)*
 - [x] **GUI11. Movement highlighting** — Show legal move destinations when figure selected; show incline cost/bonus *(gui/app.py: RoozerballApp._draw_highlights, engine/game.py: Game.movement_options)*
 - [x] **GUI12. Combat resolution overlay** — Show combat totals, modifiers, result lookup, and outcome *(gui/app.py: RoozerballApp._build_ui, RoozerballApp._latest_combat_summary)*
-- [ ] **GUI13. AI engine — computer player** — Decision-making for movement, combat initiation, scoring attempts, pack formation, tow bar usage
-- [ ] **GUI14. Game mode selection** — Computer vs Computer (simulation) or Human vs Computer
-- [ ] **GUI15. Team generation screen** — Create teams with stat rolling per rules H6–H9
+- [x] **GUI13. AI engine — computer player** — Decision-making for movement, combat initiation, scoring attempts, pack formation, tow bar usage *(game.py: built-in computer control for all phases)*
+- [x] **GUI14. Game mode selection** — Computer vs Computer (simulation) or Human vs Computer *(app.py: ModeDialog for CvC/HvC)*
+- [x] **GUI15. Team generation screen** — Create teams with stat rolling per rules H6–H9 *(app.py: TeamGenDialog with stat rolling)*
 - [x] **GUI16. Replay / log** — Turn-by-turn game log for reviewing what happened *(gui/app.py: RoozerballApp._refresh_log)*

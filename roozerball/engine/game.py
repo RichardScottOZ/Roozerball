@@ -13,6 +13,7 @@ from roozerball.engine.ball import Ball
 from roozerball.engine.board import Board, Square
 from roozerball.engine.combat import (
     resolve_brawl,
+    resolve_swoop,
     validate_swoop,
 )
 from roozerball.engine.constants import (
@@ -24,6 +25,10 @@ from roozerball.engine.constants import (
     NUM_PERIODS,
     Ring,
     TeamSide,
+    BIKE_MIN_SPEED,
+    BIKE_MAX_TURN_SPEED,
+    SLOTS_FLOOR,
+    COMPRESSED_PENALTY_MINUTES,
 )
 from roozerball.engine.penalties import PenaltyEvent, PenaltySystem
 from roozerball.engine.scoring import attempt_score, check_scoring_penalties
@@ -44,6 +49,8 @@ BIKER_SCORING_INTERFERENCE_PER_OPPONENT = 3
 # H3: endurance — max play time = toughness + 3; rest 3-6 min
 ENDURANCE_REST_MIN = 3
 ENDURANCE_REST_MAX = 6
+# H5: real-time limit for full match
+REAL_TIME_LIMIT_HOURS = 3
 
 
 @dataclass
@@ -219,8 +226,34 @@ class Game:
         initial_carrier = self.ball.carrier
         initial_sector = initial_carrier.sector_index if initial_carrier is not None else None
 
+        # E18: biker restart attempts at start of movement phase
+        for figure in self.board.figures_in_initiative_order(self.current_initiative_sector):
+            if not getattr(figure, 'is_biker', False):
+                continue
+            if not figure.is_on_field or figure.is_out_of_play:
+                continue
+            if getattr(figure, 'feet_down', False) and not getattr(figure, 'cycle_damaged', False) \
+                    and not getattr(figure, 'cycle_badly_damaged', False):
+                result = dice.skill_check(getattr(figure, 'skill', 7))
+                if result.success:
+                    figure.feet_down = False
+                    figure.consecutive_turns_fixing = 0
+                    messages.append(f"{figure.name} restarts bike ({result.roll} vs {result.target}).")
+                else:
+                    figure.consecutive_turns_fixing = getattr(figure, 'consecutive_turns_fixing', 0) + 1
+                    messages.append(f"{figure.name} fails to restart bike (attempt {figure.consecutive_turns_fixing}).")
+                    if figure.consecutive_turns_fixing >= 2:
+                        messages.append(f"{figure.name} must go off-track for repair.")
+                        figure.is_on_field = False
+                        figure.rest_time = 3
+                        self._remove_from_board(figure)
+
         for figure in self.board.figures_in_initiative_order(self.current_initiative_sector):
             if not figure.is_on_field or figure.is_out_of_play or figure.has_moved:
+                continue
+
+            # E9: skip towed figures (they move with their bike)
+            if getattr(figure, 'is_towed', False):
                 continue
 
             current_square = self.board.find_square_of_figure(figure)
@@ -235,8 +268,33 @@ class Game:
                 messages.extend(self._attempt_stand(figure))
                 continue
 
+            # E6: biker with feet_down or entered_field_this_turn: limit speed
+            # (Speed property in Biker already handles this automatically)
+            is_biker = getattr(figure, 'is_biker', False)
+
+            # E11: process tow bar grabs before move
+            if is_biker:
+                messages.extend(self._process_tow_bar_grabs_before_move(figure, current_square))
+
+            # E3: check if biker first-square-straight is blocked
+            if is_biker:
+                options = self._movement_options_with_costs(figure, current_square)
+                if not options:
+                    # First-square-straight blocked; skill check to bypass
+                    bypass = dice.skill_check(getattr(figure, 'skill', 7))
+                    if bypass.success:
+                        messages.append(f"{figure.name} navigates around blockage ({bypass.roll} vs {bypass.target}).")
+                    else:
+                        messages.append(f"{figure.name} blocked and stays put ({bypass.roll} vs {bypass.target}).")
+                        figure.has_moved = True
+                        if getattr(figure, 'feet_down', False):
+                            figure.feet_down = True
+                        continue
+
             destination = self.choose_movement_destination(figure, current_square)
             if destination is None:
+                if is_biker and getattr(figure, 'feet_down', False):
+                    figure.feet_down = True  # keep feet_down if didn't move
                 continue
             if not self._is_legal_movement_destination(figure, current_square, destination):
                 messages.extend(self._handle_illegal_movement(figure, current_square, destination))
@@ -254,6 +312,11 @@ class Game:
                 continue
 
             origin = current_square
+
+            # G39: track ring before movement for swoop detection
+            if origin.ring is not None:
+                figure.moved_from_ring = origin.ring
+
             if self.board.move_figure(figure, destination):
                 figure.has_moved = True
                 messages.append(
@@ -263,13 +326,25 @@ class Game:
                 )
                 if figure.has_ball:
                     messages.extend(self._update_ball_carrier_progress(figure, origin, destination))
-                # F21-F24: obstacle skill check on entering square
-                messages.extend(self._check_obstacle_entry(figure, destination))
+
+                # Biker-specific obstacle check (E15) vs generic
+                if is_biker and destination.is_obstacle_square():
+                    messages.extend(self._check_biker_obstacle_entry(figure, destination))
+                else:
+                    # F21-F24: obstacle skill check on entering square
+                    messages.extend(self._check_obstacle_entry(figure, destination))
+
                 # F11: hand-off opportunity when ball carrier reaches a teammate
                 if figure.has_ball:
                     messages.extend(self._check_handoff_opportunity(figure))
                 # H3: track endurance
                 self._advance_endurance(figure)
+
+                # E12: move towed skaters with biker
+                if is_biker:
+                    messages.extend(self._move_towed_skaters(figure, destination))
+                    # E11: post-move tow grabs
+                    messages.extend(self._process_post_move_tow_grabs(figure, destination))
 
         messages.extend(self._enforce_ball_carrier_movement(initial_carrier, initial_sector))
         # A11: Goal tending — check if defense set up a screen but shooter didn't attempt
@@ -284,15 +359,81 @@ class Game:
             self._record_messages(messages)
             return PhaseResult(Phase.COMBAT, messages)
 
+        # G39-G40: resolve swoops BEFORE regular brawls
+        swooped_squares: set = set()
+        for sector_index in self.board.get_initiative_order(self.current_initiative_sector):
+            for square in self.board.squares_in_initiative_order(sector_index):
+                if id(square) in swooped_squares:
+                    continue
+                for figure in square.figures_in_square():
+                    if getattr(figure, 'swooped_this_turn', False):
+                        continue
+                    moved_from = getattr(figure, 'moved_from_ring', None)
+                    if moved_from is None:
+                        continue
+                    if moved_from.value <= square.ring.value:
+                        continue  # didn't move down
+                    if getattr(figure, 'is_towed', False):
+                        continue
+                    # Find an opponent in the square
+                    opponents = [
+                        f for f in square.figures_in_square()
+                        if f is not figure and getattr(f, 'team', None) != getattr(figure, 'team', None)
+                        and getattr(f, 'is_standing', False)
+                    ]
+                    if not opponents:
+                        continue
+
+                    # G42: check for man-to-man pair in the square
+                    m2m_figures = [
+                        f for f in square.figures_in_square()
+                        if f is not figure
+                        and getattr(f, 'status', None) == FigureStatus.MAN_TO_MAN
+                    ]
+                    if len(m2m_figures) >= 2:
+                        messages.extend(
+                            self._resolve_swoop_vs_m2m_pair(figure, m2m_figures, square))
+                        swooped_squares.add(id(square))
+                        break
+
+                    target = max(opponents, key=lambda f: getattr(f, 'combat', 0))
+                    valid, reason = validate_swoop(figure, target, board=self.board)
+                    if not valid:
+                        continue
+                    outcome = resolve_swoop(figure, target, board=self.board)
+                    figure.swooped_this_turn = True
+                    figure.has_fought = True
+                    target.has_fought = True
+                    swooped_squares.add(id(square))  # G40: one swoop per square per turn
+                    messages.extend(outcome.messages)
+                    messages.extend(self._apply_outcome_injuries(outcome))
+                    messages.extend(self._apply_combat_penalties(outcome))
+                    messages.extend(self._handle_dropped_balls(square))
+                    # Check biker combat consequences
+                    if getattr(target, 'is_biker', False):
+                        messages.extend(self._apply_biker_combat_consequences(target, outcome))
+                    if getattr(figure, 'is_biker', False):
+                        messages.extend(self._apply_biker_combat_consequences(figure, outcome))
+                    break  # one swoop per square
+
         for sector_index in self.board.get_initiative_order(self.current_initiative_sector):
             for square in self.board.squares_in_initiative_order(sector_index):
                 home_figures = self._fight_ready_figures(square, TeamSide.HOME)
                 visitor_figures = self._fight_ready_figures(square, TeamSide.VISITOR)
+
+                # G13: filter out figures that opted out of combat
+                home_figures = [f for f in home_figures if not getattr(f, 'opted_out_of_combat', False)]
+                visitor_figures = [f for f in visitor_figures if not getattr(f, 'opted_out_of_combat', False)]
+
+                # I1: skip figures that haven't moved (unconed) from blocking/control
+                home_figures = [f for f in home_figures if getattr(f, 'has_moved', False) or not getattr(f, 'is_standing', False)]
+                visitor_figures = [f for f in visitor_figures if getattr(f, 'has_moved', False) or not getattr(f, 'is_standing', False)]
+
                 if not home_figures or not visitor_figures:
                     continue
 
-                # G12-G13: attacker picks one opposing figure; AI picks highest-combat
-                # opponent, but all teammates in base-to-base may join
+                # G12: AI picks highest-combat opponent as target; all in b2b join
+                # Determine attacker/defender by initiative
                 outcome = resolve_brawl(home_figures, visitor_figures, board=self.board)
                 for figure in home_figures + visitor_figures:
                     figure.has_fought = True
@@ -302,6 +443,21 @@ class Game:
                 messages.extend(self._apply_outcome_injuries(outcome))
                 messages.extend(self._apply_combat_penalties(outcome))
                 messages.extend(self._handle_dropped_balls(square))
+
+                # E22-E26: check if any biker was involved
+                for figure in home_figures + visitor_figures:
+                    if getattr(figure, 'is_biker', False):
+                        messages.extend(self._apply_biker_combat_consequences(figure, outcome))
+
+                # F20: log when controlled square filtering occurred
+                ctrl = square.controlling_team()
+                if ctrl is not None:
+                    messages.append(f"Square {square} controlled by {ctrl.value} during combat.")
+
+                # G36: goal push direction
+                if square.is_goal and square.goal_side is not None:
+                    direction = self._goal_push_direction(square.sector_index)
+                    messages.append(f"Goal sector push direction: {direction}.")
 
         self._record_messages(messages)
         return PhaseResult(Phase.COMBAT, messages)
@@ -510,6 +666,9 @@ class Game:
                     figure.is_on_field = True
                     figure.needs_stand_up = False
                     figure.auto_stand_next_turn = False
+                    # E6: biker entering field moves at min speed
+                    if getattr(figure, 'is_biker', False):
+                        figure.entered_field_this_turn = True
                     messages.append(f"{figure.name} returns to play.")
                     break
         return messages
@@ -538,6 +697,19 @@ class Game:
                 continue
 
             for figure in figures:
+                # F14: loose ball pickup opportunity as ball passes through
+                if (self.ball.carrier is None
+                        and self.ball.state in (BallState.ON_TRACK,)
+                        and not getattr(figure, 'is_biker', False)
+                        and figure.can_act
+                        and figure.is_on_field
+                        and not figure.is_out_of_play):
+                    pickup_msgs = self._try_loose_ball_pickup(figure, square)
+                    if pickup_msgs:
+                        messages.extend(pickup_msgs)
+                        if self.ball.carrier is not None:
+                            break
+                        continue
                 avoid = dice.skill_check(figure.skill)
                 if avoid.success:
                     messages.append(f"{figure.name} avoids the ball.")
@@ -659,6 +831,36 @@ class Game:
     def _drop_ball_from_carrier(self, figure: Any) -> List[str]:
         if self.ball.carrier is not figure:
             return []
+        # F12: Last-second hand-off on fall — check for teammate in b2b contact
+        carrier_sq = self.board.find_square_of_figure(figure)
+        if carrier_sq is not None:
+            best_receiver = None
+            for team in self.teams:
+                if getattr(team, 'side', None) != getattr(figure, 'team', None):
+                    continue
+                for fig in team.active_figures:
+                    if fig is figure or not fig.is_on_field or fig.is_out_of_play:
+                        continue
+                    if not getattr(fig, 'is_skater', False):
+                        continue
+                    if not fig.is_standing:
+                        continue
+                    fig_sq = self.board.find_square_of_figure(fig)
+                    if fig_sq is None:
+                        continue
+                    if self.board.are_in_base_to_base_contact(carrier_sq, fig_sq):
+                        if best_receiver is None or fig.skill > best_receiver.skill:
+                            best_receiver = fig
+            if best_receiver is not None:
+                result = dice.skill_check(best_receiver.skill, -2)
+                if result.success:
+                    figure.has_ball = False
+                    best_receiver.has_ball = True
+                    self.ball.carrier = best_receiver
+                    return [
+                        f"{figure.name} last-second hand-off to {best_receiver.name} "
+                        f"({result.roll} vs {result.target})."
+                    ]
         message = self.ball.drop()
         figure.drop_ball()
         self.ball.sector_index = figure.sector_index or 0
@@ -739,13 +941,22 @@ class Game:
     ) -> List[tuple[Square, int]]:
         if square is None:
             return []
-        return [
-            (candidate, cost)
-            for candidate, cost in self.board.squares_in_range(square, figure.speed, figure.figure_type)
-            if candidate.has_space_for(figure.figure_type)
-            and candidate.controlling_team() not in (self.opponent_side(figure.team),)
-            and not self._is_biker_goal_restricted_square(figure, candidate)
-        ]
+        opp_side = self.opponent_side(figure.team)
+        results = []
+        for candidate, cost in self.board.squares_in_range(square, figure.speed, figure.figure_type):
+            if not candidate.has_space_for(figure.figure_type):
+                continue
+            ctrl = candidate.controlling_team()
+            if ctrl == opp_side:
+                # F20: controlled square assault — log when filtering
+                continue
+            if self._is_biker_goal_restricted_square(figure, candidate):
+                continue
+            # E4: biker cannot pass through square if left slots all occupied
+            if getattr(figure, 'is_biker', False) and not self._biker_can_pass_through(figure, candidate):
+                continue
+            results.append((candidate, cost))
+        return results
 
     def _is_legal_movement_destination(self, figure: Any, origin: Square, destination: Square) -> bool:
         legal_destinations = {id(square) for square, _ in self._movement_options_with_costs(figure, origin)}
@@ -973,6 +1184,9 @@ class Game:
         attempt happened this lap, they must chase and complete another lap before
         screening again.  We enforce this by logging the violation and marking the
         figures (AI will move them away next turn).
+
+        Enhancement: defenders caught goal-tending have their cones removed
+        (has_moved reset) forcing them to leave the goal area.
         """
         messages: List[str] = []
         if not self.ball.is_activated:
@@ -1013,6 +1227,8 @@ class Game:
                     lap = getattr(df, 'goal_screen_lap', None)
                     current_lap = self.ball.laps_since_activation
                     if lap == current_lap:
+                        # A11 enhancement: remove cones to force them out
+                        df.has_moved = False
                         messages.append(
                             f"Goal-tending: {df.name} must chase and complete a lap before screening again.")
                     df.goal_screen_lap = current_lap  # mark this lap
@@ -1023,11 +1239,16 @@ class Game:
     # -----------------------------------------------------------------------
 
     def _advance_endurance(self, figure: Any) -> None:
-        """Rule H3: Track endurance depletion for active moving figures."""
+        """Rule H3: Track endurance depletion for active moving figures.
+
+        Standing still = no endurance loss. Towed = no loss.
+        """
         if not getattr(figure, 'is_on_field', False):
             return
         if getattr(figure, 'is_towed', False):
             return  # Towed skaters (on bike) don't deplete endurance
+        if not getattr(figure, 'has_moved', False):
+            return  # H3: standing still = no endurance loss
         endurance_used = getattr(figure, 'endurance_used', 0) + 1
         figure.endurance_used = endurance_used
         toughness = getattr(figure, 'base_toughness', 7)
@@ -1235,6 +1456,126 @@ class Game:
         return 'left' if dice.roll_d6() <= 3 else 'right'
 
     # -----------------------------------------------------------------------
+    # E4: Biker passthrough check
+    # -----------------------------------------------------------------------
+
+    def _biker_can_pass_through(self, figure: Any, square: Square) -> bool:
+        """E4: Biker cannot pass through square if left slots are all occupied.
+
+        For 6-slot squares (floor): slots 0, 1, 2 are left side.
+        For 4-slot squares (incline): slots 0, 2 are left side.
+        """
+        if not getattr(figure, 'is_biker', False):
+            return True
+        cap = square.capacity
+        if cap >= SLOTS_FLOOR:
+            left_slots = [0, 1, 2]
+        else:
+            left_slots = [0, 2]
+        left_occupied = all(
+            idx < len(square.slots) and square.slots[idx].figure is not None
+            for idx in left_slots
+        )
+        return not left_occupied
+
+    # -----------------------------------------------------------------------
+    # E9-E14: Tow bar movement helpers
+    # -----------------------------------------------------------------------
+
+    def _process_tow_bar_grabs_before_move(self, biker: Any, current_square: Square) -> List[str]:
+        """E11: Skaters can grab tow bar as bike starts moving."""
+        messages: List[str] = []
+        if len(getattr(biker, 'towing', [])) >= 3:
+            return messages
+        team = getattr(biker, 'team', None)
+        for fig in current_square.figures_in_square():
+            if fig is biker:
+                continue
+            if getattr(fig, 'team', None) != team:
+                continue
+            if not getattr(fig, 'is_skater', False):
+                continue
+            if getattr(fig, 'has_moved', False):
+                continue
+            if getattr(fig, 'is_towed', False):
+                continue
+            if not fig.is_standing:
+                continue
+            messages.extend(self._attach_tow_bar(biker, fig))
+            if len(biker.towing) >= 3:
+                break
+        return messages
+
+    def _move_towed_skaters(self, biker: Any, destination: Square) -> List[str]:
+        """E12: Move towed skaters with the biker."""
+        messages: List[str] = []
+        for skater in list(getattr(biker, 'towing', [])):
+            if self.board.move_figure(skater, destination):
+                skater.has_moved = True
+                messages.append(f"{skater.name} towed to {destination}.")
+            else:
+                messages.extend(self._detach_tow_bar(skater))
+                messages.append(f"{skater.name} detached — no space at destination.")
+        return messages
+
+    def _process_post_move_tow_grabs(self, biker: Any, destination: Square) -> List[str]:
+        """E11: Skaters at destination can grab bar after bike arrives."""
+        messages: List[str] = []
+        if len(getattr(biker, 'towing', [])) >= 3:
+            return messages
+        team = getattr(biker, 'team', None)
+        for fig in destination.figures_in_square():
+            if fig is biker:
+                continue
+            if getattr(fig, 'team', None) != team:
+                continue
+            if not getattr(fig, 'is_skater', False):
+                continue
+            if getattr(fig, 'is_towed', False):
+                continue
+            if not fig.is_standing:
+                continue
+            messages.extend(self._attach_tow_bar(biker, fig))
+            if len(biker.towing) >= 3:
+                break
+        return messages
+
+    # -----------------------------------------------------------------------
+    # E15: Biker obstacle entry
+    # -----------------------------------------------------------------------
+
+    def _check_biker_obstacle_entry(self, biker: Any, square: Square) -> List[str]:
+        """E15: Biker obstacle check routes to cycle chart instead of generic fall."""
+        messages: List[str] = []
+        if not square.is_obstacle_square():
+            return messages
+        messages.extend(self._check_bike_crash(biker, square))
+        return messages
+
+    # -----------------------------------------------------------------------
+    # E22-E26: Biker combat consequences
+    # -----------------------------------------------------------------------
+
+    def _apply_biker_combat_consequences(self, biker: Any, outcome: Any) -> List[str]:
+        """E22-E26: Apply biker-specific combat aftermath."""
+        messages: List[str] = []
+        if not getattr(biker, 'is_biker', False):
+            return messages
+        # E25: if biker in man-to-man, auto-roll cycle chart at -1
+        messages.extend(self._check_biker_combat_legality(biker))
+        # E23: doubled penalties for attacker hitting a biker are already
+        # handled via MOD_SKATER_HIT_BIKER in combat.py
+        # E26: if biker wins and stays to fight, penalty check
+        if getattr(biker, 'status', None) == FigureStatus.STANDING and biker.has_fought:
+            event = self.penalties.check_infraction(
+                biker, "biker_combat_stay",
+                ball_sector=self.ball.sector_index,
+            )
+            if event.detected:
+                messages.append(self._enforce_penalty(event))
+        return messages
+
+    # -----------------------------------------------------------------------
     # H4: 2-minute time-compression mode
     # -----------------------------------------------------------------------
 
@@ -1246,3 +1587,169 @@ class Game:
     def set_time_compression(self, enabled: bool) -> None:
         """Enable/disable H4 2-minute-per-turn mode."""
         self._minutes_per_turn = 2 if enabled else 1
+
+    def effective_penalty_minutes(self, base_minutes: int) -> int:
+        """H4: In 2-min mode, 3-minute penalties round up to 4."""
+        if self.minutes_per_turn == 2 and base_minutes == 3:
+            return COMPRESSED_PENALTY_MINUTES
+        return base_minutes
+
+    @property
+    def real_time_limit(self) -> int:
+        """H5: 3-hour real-time limit for a full match (in minutes)."""
+        return REAL_TIME_LIMIT_HOURS * 60
+
+    # -------------------------------------------------------------------
+    # F16-F18: Pack detection and movement
+    # -------------------------------------------------------------------
+
+    def _detect_packs(self, initiative_sector: int) -> List[List[Any]]:
+        """F16: Detect groups of 2-4 figures moving together.
+
+        Figures must be same team, same ring, bases touching (adjacent sectors
+        or same sector), all standing and ready to move.
+        """
+        unmoved = [
+            f for f in self.board.figures_in_initiative_order(initiative_sector)
+            if f.is_on_field and not f.is_out_of_play and not f.has_moved
+            and f.is_standing and not getattr(f, 'is_towed', False)
+        ]
+        used: set = set()
+        packs: List[List[Any]] = []
+        for fig in unmoved:
+            if id(fig) in used:
+                continue
+            fig_sq = self.board.find_square_of_figure(fig)
+            if fig_sq is None:
+                continue
+            group = [fig]
+            used.add(id(fig))
+            for other in unmoved:
+                if id(other) in used:
+                    continue
+                if getattr(other, 'team', None) != getattr(fig, 'team', None):
+                    continue
+                other_sq = self.board.find_square_of_figure(other)
+                if other_sq is None:
+                    continue
+                if other_sq.ring != fig_sq.ring:
+                    continue
+                # Check adjacency to any member already in the group
+                for member in group:
+                    m_sq = self.board.find_square_of_figure(member)
+                    if m_sq and self.board.are_in_base_to_base_contact(m_sq, other_sq):
+                        group.append(other)
+                        used.add(id(other))
+                        break
+                if len(group) >= 4:
+                    break
+            if len(group) >= 2:
+                packs.append(group)
+        return packs
+
+    def _move_pack(self, pack: List[Any]) -> List[str]:
+        """F17-F18: Move pack as a unit at slowest member's speed."""
+        messages: List[str] = []
+        if not pack:
+            return messages
+        # F18: bike-tow packs move at cycle speed
+        has_biker = any(getattr(f, 'is_biker', False) for f in pack)
+        if has_biker:
+            slowest_speed = max(f.speed for f in pack if getattr(f, 'is_biker', False))
+        else:
+            slowest_speed = min(f.speed for f in pack)
+        leader = pack[0]
+        leader_sq = self.board.find_square_of_figure(leader)
+        if leader_sq is None:
+            return messages
+        dest = self.choose_movement_destination(leader, leader_sq)
+        if dest is None:
+            return messages
+        names = ", ".join(getattr(f, 'name', '?') for f in pack)
+        messages.append(f"Pack ({names}) moves together at speed {slowest_speed}.")
+        for fig in pack:
+            fig_sq = self.board.find_square_of_figure(fig)
+            if fig_sq is None:
+                continue
+            if self.board.move_figure(fig, dest):
+                fig.has_moved = True
+                # F17: obstacle skill check for each pack member
+                if dest.is_obstacle_square():
+                    messages.extend(self._check_obstacle_entry(fig, dest))
+        return messages
+
+    # -------------------------------------------------------------------
+    # F22: Classify obstacle type
+    # -------------------------------------------------------------------
+
+    @staticmethod
+    def _classify_obstacle(square: Square) -> Optional[str]:
+        """F22: Return the type of obstacle in a square, or None.
+
+        Possible return values:
+        - ``'fire'`` — square is on fire
+        - ``'fallen_bike'`` — downed motorcycle on the track
+        - ``'sprawled_figure'`` — dead, unconscious or injured figure
+        - ``'generic'`` — unspecified obstacle marker
+        - ``None`` — no obstacle present
+        """
+        if square.is_on_fire:
+            return 'fire'
+        for fig in square.figures_in_square():
+            status = getattr(fig, 'status', None)
+            if getattr(fig, 'is_biker', False) and (
+                    getattr(fig, 'feet_down', False)
+                    or getattr(fig, 'cycle_damaged', False)):
+                return 'fallen_bike'
+            if status in (FigureStatus.DEAD, FigureStatus.UNCONSCIOUS):
+                return 'sprawled_figure'
+            if (status in (FigureStatus.INJURED, FigureStatus.BADLY_SHAKEN)
+                    and not getattr(fig, 'needs_stand_up', False)):
+                return 'sprawled_figure'
+        if square.has_obstacle:
+            return 'generic'
+        return None
+
+    # -------------------------------------------------------------------
+    # F25: Optional random obstacle slot (stub — not activated by default)
+    # -------------------------------------------------------------------
+
+    def _maybe_add_random_obstacle(self) -> List[str]:
+        """F25: Optionally place a random obstacle. Disabled by default."""
+        if not getattr(self, '_random_obstacles_enabled', False):
+            return []
+        import random as _rng  # local: only used when feature is enabled
+        sector = _rng.randint(0, 11)
+        ring = _rng.choice([Ring.LOWER, Ring.MIDDLE, Ring.UPPER])
+        sq = self.board.get_square(sector, ring, 0)
+        sq.has_obstacle = True
+        sq.obstacle_type = 'random'
+        return [f"Random obstacle placed in sector {sector}, {ring.name.lower()} ring."]
+
+    # -------------------------------------------------------------------
+    # G42: Swoop vs man-to-man pair
+    # -------------------------------------------------------------------
+
+    def _resolve_swoop_vs_m2m_pair(
+        self, swooper: Any, targets: List[Any], square: Square
+    ) -> List[str]:
+        """G42: When a swoop targets a square with a man-to-man pair,
+        both figures are attacked. Risk of injuring own teammate."""
+        messages: List[str] = []
+        for target in targets:
+            valid, reason = validate_swoop(swooper, target, board=self.board)
+            if not valid:
+                continue
+            outcome = resolve_swoop(swooper, target, board=self.board)
+            swooper.swooped_this_turn = True
+            swooper.has_fought = True
+            target.has_fought = True
+            messages.extend(outcome.messages)
+            messages.extend(self._apply_outcome_injuries(outcome))
+            messages.extend(self._apply_combat_penalties(outcome))
+            # G42: warn if target is a teammate (friendly fire)
+            if getattr(target, 'team', None) == getattr(swooper, 'team', None):
+                messages.append(
+                    f"WARNING: {swooper.name} swooped own teammate {target.name}!")
+        messages.extend(self._handle_dropped_balls(square))
+        return messages
