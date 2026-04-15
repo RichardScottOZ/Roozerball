@@ -315,9 +315,8 @@ class BoardRenderer:
     def _font(self, size: int, bold: bool = False) -> pygame.font.Font:
         key = (size, bold)
         if key not in self._font_cache:
-            font_name = pygame.font.get_default_font()
-            f = pygame.font.SysFont("arial,helvetica,sans-serif", size, bold=bold)
-            self._font_cache[key] = f
+            self._font_cache[key] = pygame.font.SysFont(
+                "arial,helvetica,sans-serif", size, bold=bold)
         return self._font_cache[key]
 
     def get_anim(self, figure: Any) -> SpriteAnimation:
@@ -415,12 +414,6 @@ class BoardRenderer:
                 for position in range(sq_count):
                     start = base_start + (sector_span / sq_count) * position
                     end = start + (sector_span / sq_count)
-                    pts = _wedge_points(BOARD_CX, BOARD_CY,
-                                        inner_r * z, outer_r * z, start, end)
-                    screen_pts = [self._w2s(px, py) for px, py in
-                                  [(BOARD_CX + (p[0] - BOARD_CX),
-                                    BOARD_CY + (p[1] - BOARD_CY)) for p in pts]]
-                    # Re-derive screen points properly
                     raw_pts = _wedge_points(BOARD_CX, BOARD_CY,
                                             inner_r, outer_r, start, end)
                     screen_pts = [self._w2s(p[0], p[1]) for p in raw_pts]
@@ -809,7 +802,6 @@ class BoardRenderer:
 
     def figure_at(self, screen_x: int, screen_y: int) -> Optional[Any]:
         """Return the figure under screen position, or None."""
-        pt = pygame.Rect(screen_x, screen_y, 1, 1)
         for fid, (rect, fig) in self.figure_rects.items():
             if rect.collidepoint(screen_x, screen_y):
                 return fig

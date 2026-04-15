@@ -69,8 +69,8 @@ def clear_dice_log() -> None:
 _font_cache: Dict[Tuple[str, int, bool], pygame.font.Font] = {}
 
 
-def _font(size: int, bold: bool = False, family: str = "arial") -> pygame.font.Font:
-    key = (family, size, bold)
+def _font(size: int, bold: bool = False) -> pygame.font.Font:
+    key = ("arial", size, bold)
     if key not in _font_cache:
         _font_cache[key] = pygame.font.SysFont(
             "arial,helvetica,sans-serif", size, bold=bold)
