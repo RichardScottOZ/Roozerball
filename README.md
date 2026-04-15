@@ -1,8 +1,8 @@
 # Roozerball
 
-A fully-implemented Python engine with **three desktop GUIs** for **Roozerball** — the over-the-top Australian full-contact roller-skating sport from J. P. Trostle's tabletop game (©2010). Teams of skaters, catchers, and motorcyclists battle on a circular inclined track to fire a steel ball through the opposing goal.
+A fully-implemented Python engine with **four desktop GUIs** for **Roozerball** — the over-the-top Australian full-contact roller-skating sport from J. P. Trostle's tabletop game (©2010). Teams of skaters, catchers, and motorcyclists battle on a circular inclined track to fire a steel ball through the opposing goal.
 
-The **Tier 3 Enhanced Pygame GUI** (recommended) builds on Tier 2 with a scene-graph node architecture, radial incline gradient overlays, ball heat-glow shimmer, speed lines on fast figures, goal-flash celebrations, advanced trail particles (motorcycle exhaust, dust clouds, confetti), and themed rounded UI panels with shadow dialogs. The **Tier 2 Pygame GUI** and the original **Tier 1 Tkinter GUI** remain available as fallbacks.
+The **Tier 4 Realistic Graphics GUI** (recommended) delivers the most visually impressive experience with procedural track textures, stadium environment with crowd silhouettes and floodlights, post-processing effects (bloom, vignette, screen shake, heat distortion), motion blur afterimages, metallic ball with specular highlights and trail, multi-source dynamic lighting, atmospheric dust particles, and glass-morphism UI panels. The **Tier 3 Enhanced Pygame GUI**, **Tier 2 Pygame GUI**, and the original **Tier 1 Tkinter GUI** remain available as fallbacks.
 
 ---
 
@@ -75,7 +75,27 @@ Then re-activate the venv and run normally.
 
 ## Running the GUI
 
-### Tier 3 — Enhanced Pygame (recommended)
+### Tier 4 — Realistic Graphics (recommended)
+
+```bash
+python -m roozerball.gui_tier4
+```
+
+The Pygame window opens at 1500 × 900 px with all Tier 3 features plus procedural track textures, stadium environment with crowd silhouettes and floodlights, post-processing (bloom, vignette, heat distortion), screen shake on impacts, motion blur afterimages, metallic ball with specular highlights and trail, atmospheric dust motes, and glass-morphism UI.
+
+**Keyboard shortcuts:**
+| Key | Action |
+|---|---|
+| `N` | Next Phase |
+| `P` | Play Turn |
+| `F` | Follow ball carrier (camera) |
+| `R` | Reset camera |
+| `I` | Toggle isometric perspective |
+| `Esc` | Cancel current interaction / skip movement |
+| Mouse wheel | Zoom in / out |
+| Right-click drag | Pan the board |
+
+### Tier 3 — Enhanced Pygame
 
 ```bash
 python -m roozerball.gui_tier3
@@ -297,12 +317,30 @@ Roozerball/
 │   ├── gui/                 # Tier 1 — Tkinter GUI (fallback)
 │   │   ├── app.py           # Tkinter application (board canvas, panels, dialogs)
 │   │   └── __main__.py      # Entry point: python -m roozerball.gui
-│   └── gui_pygame/          # Tier 2 — Pygame GUI (recommended)
-│       ├── app.py           # Main game loop, event dispatch, callbacks
-│       ├── renderer.py      # Board, sprites, camera, particles, lighting
-│       ├── ui.py            # Side panels, dialog overlays, buttons
-│       ├── constants.py     # Pygame-specific colours, layout, animation params
-│       └── __main__.py      # Entry point: python -m roozerball.gui_pygame
+│   ├── gui_pygame/          # Tier 2 — Pygame GUI
+│   │   ├── app.py           # Main game loop, event dispatch, callbacks
+│   │   ├── renderer.py      # Board, sprites, camera, particles, lighting
+│   │   ├── ui.py            # Side panels, dialog overlays, buttons
+│   │   ├── constants.py     # Pygame-specific colours, layout, animation params
+│   │   └── __main__.py      # Entry point: python -m roozerball.gui_pygame
+│   ├── gui_tier3/           # Tier 3 — Enhanced Pygame with scene-graph
+│   │   ├── app.py           # Scene-graph application, callbacks, dialogs
+│   │   ├── renderer.py      # Scene-graph renderer with effects
+│   │   ├── ui.py            # Themed panels and dialogs
+│   │   ├── constants.py     # Tier 3 colours, gradients, animation params
+│   │   ├── scene.py         # Scene-graph node system, transforms, animation
+│   │   ├── particles.py     # Trail particles, exhaust, confetti
+│   │   └── __main__.py      # Entry point: python -m roozerball.gui_tier3
+│   └── gui_tier4/           # Tier 4 — Realistic Graphics (recommended)
+│       ├── app.py           # Main game loop with post-processing and screen shake
+│       ├── renderer.py      # Realistic board renderer with stadium environment
+│       ├── ui.py            # Glass-morphism panels and dialogs
+│       ├── constants.py     # Tier 4 colours, effects, stadium parameters
+│       ├── effects.py       # Post-processing pipeline (bloom, vignette, shake)
+│       ├── textures.py      # Procedural track textures and crowd generation
+│       ├── particles.py     # Enhanced particles with ambient atmosphere
+│       ├── scene.py         # Scene graph (shared with Tier 3)
+│       └── __main__.py      # Entry point: python -m roozerball.gui_tier4
 ├── tests/                   # 283-test regression suite
 ├── docs/
 │   └── Roozerball-rules.pdf # Source rules reference (©2010 J. P. Trostle)
@@ -382,7 +420,7 @@ The Computer vs Computer mode is fully playable and a good way to stress-test th
 
 ## Future Graphics Options
 
-Tiers 1–3 are all implemented. Below is the status and remaining upgrade paths:
+Tiers 1–4 are all implemented. Below is the status and remaining upgrade paths:
 
 ### Tier 1 — Stay in Python, enhance Tkinter ✅ Complete
 
@@ -416,18 +454,31 @@ Available via `python -m roozerball.gui_tier3`. All Tier 3 enhancements implemen
 | **Themed UI** | ✅ Rounded-corner panels and dialogs with shadow effects, hover/pressed button states |
 | **Isometric toggle** | ✅ Press `I` to toggle isometric perspective (pseudo-3D banked track view) |
 
-### Tier 4 — Dedicated game engine (Godot)
+### Tier 4 — Realistic Graphics (Pygame) ✅ Complete
 
-The [`roozerball-rules-to-implement.md`](roozerball-rules-to-implement.md) recommends **Godot Engine** as the long-term target. Key gains beyond Tier 3:
+Available via `python -m roozerball.gui_tier4`. All Tier 4 enhancements implemented:
 
-| Enhancement | Description |
+| Enhancement | Status |
 |---|---|
-| **Native scene graph** | Godot's built-in node system with collision shapes, animation players, and physics integration |
-| **Skeletal animation** | 2D skeleton rigs for skater/biker figures — smooth run cycles, combat swings, falls |
-| **GLSL shaders** | GPU shaders for advanced glow, speed distortion, and atmospheric effects |
-| **Web export** | One-click HTML5 build for browser play with no install required |
+| **Procedural track textures** | ✅ Noise-based surface grain, dashed lane markings, scuff/wear marks, sector tick marks |
+| **Stadium environment** | ✅ Outer wall with highlight, railing, floodlight rigs with subtle flicker |
+| **Crowd silhouettes** | ✅ Animated spectator outlines in the stands with staggered bobbing |
+| **Multi-source floodlight lighting** | ✅ Four stadium floodlights with soft penumbra, per-square brightness boost |
+| **Post-processing: bloom** | ✅ Software bloom pass extracting bright pixels, blur, and additive composite |
+| **Post-processing: vignette** | ✅ Darkened edges for cinematic framing |
+| **Post-processing: heat distortion** | ✅ Localised shimmer near the ball keyed to temperature |
+| **Screen shake** | ✅ Camera trauma system for cannon fire, crashes, and goals with decay |
+| **Motion blur afterimages** | ✅ Fading ghost trail on fast-moving figures (SPD ≥ 5) |
+| **Enhanced figure rendering** | ✅ Multi-layer sprites with specular highlight spots, floodlight brightness boost |
+| **Metallic ball** | ✅ Inner gradient, dual specular highlights, afterimage trail, enhanced shimmer |
+| **Team-tinted speed lines** | ✅ Speed trails tinted to team colour (blue for home, red for visitor) |
+| **Atmospheric particles** | ✅ Persistent ambient dust motes floating in the arena atmosphere |
+| **Enhanced particle effects** | ✅ Impact sparks, floating embers, rotated confetti, golden confetti burst on goals |
+| **Goal glow pulsing** | ✅ Goal squares pulse with team-coloured glow |
+| **Tow bar energy effect** | ✅ Animated brightness pulse on tow bar connection lines |
+| **Glass-morphism UI** | ✅ Frosted-glass panels with translucent backgrounds, gradient buttons, top-glow borders |
 
-### Tier 5 — Full 3D (Godot 3D / Unreal / Unity)
+### Tier 5 — Dedicated Game Engine (Godot / Unreal / Unity)
 
 For a premium visual experience down the road:
 
