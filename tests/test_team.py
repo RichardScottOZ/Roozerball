@@ -120,15 +120,9 @@ class TestCanFieldWithRegularSkater(unittest.TestCase):
     def test_true_when_all_catchers_out(self):
         team = Team(side=TeamSide.HOME, name="Wombats")
         team.generate_roster()
+        from roozerball.engine.constants import FigureStatus
         for f in team.roster:
             if f.is_catcher:
-                f.status = FigureType.CATCHER  # won't match is_out_of_play
-                f.is_on_field = False
-                f.status = FigureType.CATCHER  # override; need actual incapacitation
-        # Actually make all catchers dead
-        for f in team.roster:
-            if f.is_catcher:
-                from roozerball.engine.constants import FigureStatus
                 f.status = FigureStatus.DEAD
         self.assertTrue(team.can_field_with_regular_skater())
 

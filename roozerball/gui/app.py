@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-import random
 from typing import Any, Dict, List, Optional
 
 from roozerball.engine.constants import FigureStatus, FigureType, Ring, SQUARES_PER_RING, TeamSide
@@ -11,11 +10,10 @@ from roozerball.engine.team import Team
 
 try:
     import tkinter as tk
-    from tkinter import ttk, messagebox
+    from tkinter import ttk
 except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
     tk = None
     ttk = None
-    messagebox = None
     _TK_ERROR = exc
 else:
     _TK_ERROR = None
