@@ -38,7 +38,7 @@ class ScreenShake:
         self._offset_x: float = 0.0
         self._offset_y: float = 0.0
 
-    def add_trauma(self, magnitude: float, duration_ms: float = 300) -> None:
+    def add_trauma(self, magnitude: float) -> None:
         """Add shake trauma (higher = stronger shake)."""
         self._trauma = min(self._trauma + magnitude, 15.0)
 
