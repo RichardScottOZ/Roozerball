@@ -202,7 +202,7 @@ func _build_outer_wall() -> void:
 
 func _build_goals() -> void:
 	# Home goal at sector 0, visitor goal at sector 6.
-	for goal_sector in [0, 6]:
+	for goal_sector: int in [0, 6]:
 		var a_start := goal_sector * (TAU / NUM_SECTORS)
 		var a_end := (goal_sector + 1) * (TAU / NUM_SECTORS)
 		var mid_a := (a_start + a_end) * 0.5
