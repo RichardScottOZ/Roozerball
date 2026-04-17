@@ -26,7 +26,7 @@ var is_ready: bool = false
 var _pid: int = -1
 var _stdin: FileAccess = null
 var _stdout: FileAccess = null
-var _bridge_thread: Thread = null
+var _preflight_thread: Thread = null
 var _pipe_path_in: String = ""
 var _pipe_path_out: String = ""
 var _error_log_path: String = ""
@@ -34,6 +34,8 @@ var _poll_timer: Timer = null
 var _script_path: String = ""
 var _connect_start_msec: int = 0
 const CONNECT_TIMEOUT_MS: int = 15_000  # 15 seconds before giving up
+# Set to true once Python writes its _bridge_starting indicator.
+var _python_alive: bool = false
 
 # Queued commands waiting for engine readiness.
 var _command_queue: Array[Dictionary] = []
@@ -72,6 +74,109 @@ func _start_bridge() -> void:
 		push_error("GameBridge: " + msg)
 		return
 
+	engine_status.emit("Script: %s\nCmd file: %s\nState file: %s" % [_script_path, _pipe_path_in, _pipe_path_out])
+	engine_status.emit("Running pre-flight Python check…")
+
+	# ── Run pre-flight in a background thread ───────────────────────
+	# OS.execute() is blocking: running it on the main thread would
+	# freeze Godot's entire render/event loop (including timers) for
+	# as long as Python takes to start — several seconds on conda /
+	# pyenv / Windows environments.  A background Thread keeps the UI
+	# responsive while we wait.
+	_pid = -1
+	_preflight_thread = Thread.new()
+	_preflight_thread.start(_run_preflight)
+
+
+# Background thread: discovers a working Python executable and verifies
+# the engine is importable.  Uses call_deferred() for all UI updates so
+# that no Godot node is touched from outside the main thread.
+func _run_preflight() -> void:
+	var preflight_py := ""
+	for py in ["python3", "python"]:
+		var check_output: Array = []
+		var check_code := OS.execute(py, ["--version"], check_output, true)
+		if check_code == 0 and check_output.size() > 0:
+			preflight_py = py
+			call_deferred(
+				"_emit_engine_status",
+				"Found: %s → %s" % [py, str(check_output[0]).strip_edges()]
+			)
+			break
+
+	if preflight_py == "":
+		call_deferred(
+			"_on_preflight_done",
+			{
+				"success": false,
+				"error": (
+					"Cannot find Python 3 — install Python 3.11+ and ensure "
+					+ "'python3' or 'python' is on PATH.\nTried: python3, python"
+				),
+			}
+		)
+		return
+
+	# Verify the engine is importable (catches missing deps / syntax errors
+	# immediately with full output instead of the background-process black hole).
+	var import_snippet := (
+		"import sys; sys.path.insert(0, %s); "
+		% _python_repr(repo_root)
+		+ "from roozerball.engine.game import Game; print('engine OK')"
+	)
+	call_deferred("_emit_engine_status", "Checking engine import…")
+	var import_output: Array = []
+	var import_code := OS.execute(preflight_py, ["-c", import_snippet], import_output, true)
+	if import_code != 0:
+		var detail := (
+			"\n".join(import_output).strip_edges()
+			if import_output.size() > 0
+			else "(no output)"
+		)
+		call_deferred(
+			"_on_preflight_done",
+			{
+				"success": false,
+				"error": (
+					"Python can start but cannot import the game engine.\n\n"
+					+ "Command: %s -c \"%s\"\n" % [preflight_py, import_snippet]
+					+ "Exit code: %d\n\nOutput:\n%s\n\n" % [import_code, detail]
+					+ "Repo root: %s\nScript: %s" % [repo_root, _script_path]
+				),
+			}
+		)
+		return
+
+	call_deferred(
+		"_on_preflight_done",
+		{"success": true, "python_path": preflight_py}
+	)
+
+
+# Thread-safe helper: emits engine_status from the main thread.
+func _emit_engine_status(msg: String) -> void:
+	engine_status.emit(msg)
+
+
+# Called on the main thread when the preflight thread finishes.
+func _on_preflight_done(result: Dictionary) -> void:
+	if _preflight_thread:
+		_preflight_thread.wait_to_finish()
+		_preflight_thread = null
+
+	if not result.get("success", false):
+		var msg: String = result.get("error", "Unknown pre-flight error")
+		bridge_error.emit(msg)
+		push_error("GameBridge: " + msg)
+		return
+
+	python_path = result["python_path"]
+	engine_status.emit("Pre-flight OK — engine is importable")
+	_launch_bridge_process()
+
+
+# Launch the Python bridge process and start the state-file polling timer.
+func _launch_bridge_process() -> void:
 	var args: PackedStringArray = [
 		_script_path,
 		"--cmd-file", _pipe_path_in,
@@ -79,67 +184,17 @@ func _start_bridge() -> void:
 		"--error-file", _error_log_path,
 	]
 
-	engine_status.emit("Script: %s\nCmd file: %s\nState file: %s" % [_script_path, _pipe_path_in, _pipe_path_out])
-
-	# ── Pre-flight check ─────────────────────────────────────────────
-	# Run a quick blocking OS.execute() to verify that Python exists, is
-	# the right version, and can import the engine.  Any failure here
-	# gives us immediate, readable output (stdout captured by Godot)
-	# instead of the opaque "process exited unexpectedly" later.
-	_pid = -1
-	var preflight_py := ""
-	for py in ["python3", "python"]:
-		var check_output: Array = []
-		var check_code := OS.execute(py, ["--version"], check_output, true)
-		if check_code == 0 and check_output.size() > 0:
-			preflight_py = py
-			engine_status.emit("Found: %s → %s" % [py, str(check_output[0]).strip_edges()])
-			break
-
-	if preflight_py == "":
-		var msg := (
-			"Cannot find Python 3 — install Python 3.11+ and ensure 'python3' or 'python' is on PATH.\n"
-			+ "Tried: python3, python"
-		)
-		bridge_error.emit(msg)
-		push_error("GameBridge: " + msg)
-		return
-
-	# Verify the engine is importable (catches missing deps / syntax errors
-	# immediately with full output instead of the background-process black hole).
-	var import_output: Array = []
-	var import_snippet := (
-		"import sys; sys.path.insert(0, %s); "
-		% _python_repr(repo_root)
-		+ "from roozerball.engine.game import Game; print('engine OK')"
-	)
-	var import_code := OS.execute(preflight_py, ["-c", import_snippet], import_output, true)
-	if import_code != 0:
-		var detail := "\n".join(import_output).strip_edges() if import_output.size() > 0 else "(no output)"
-		var msg := (
-			"Python can start but cannot import the game engine.\n\n"
-			+ "Command: %s -c \"%s\"\n" % [preflight_py, import_snippet]
-			+ "Exit code: %d\n\nOutput:\n%s\n\n" % [import_code, detail]
-			+ "Repo root: %s\nScript: %s" % [repo_root, _script_path]
-		)
-		bridge_error.emit(msg)
-		push_error("GameBridge: " + msg)
-		return
-	engine_status.emit("Pre-flight OK — engine is importable")
-
-	# ── Launch the bridge process ────────────────────────────────────
-	engine_status.emit("Trying '%s'..." % preflight_py)
-	_pid = OS.create_process(preflight_py, args)
+	engine_status.emit("Launching '%s'…" % python_path)
+	_pid = OS.create_process(python_path, args)
 	if _pid <= 0:
 		var msg := (
-			"OS.create_process() failed for '%s'.\nArgs: %s" % [preflight_py, str(args)]
+			"OS.create_process() failed for '%s'.\nArgs: %s" % [python_path, str(args)]
 		)
 		bridge_error.emit(msg)
 		push_error("GameBridge: " + msg)
 		return
-	python_path = preflight_py
 
-	engine_status.emit("Launched '%s' (PID %d)\nWaiting for engine to start..." % [python_path, _pid])
+	engine_status.emit("Launched '%s' (PID %d)\nWaiting for engine to start…" % [python_path, _pid])
 
 	# Poll for the initial state file from the Python process.
 	_connect_start_msec = Time.get_ticks_msec()
@@ -175,6 +230,12 @@ func _poll_for_ready() -> void:
 						full_msg += "\n" + tb
 					bridge_error.emit(full_msg)
 					return
+				# Early "alive" indicator written by godot_bridge.py before Game() init.
+				if parsed.has("_bridge_starting"):
+					if not _python_alive:
+						_python_alive = true
+						engine_status.emit("Python started — game engine initializing…")
+					return  # Keep polling; engine not ready yet.
 				state = parsed
 				is_ready = true
 				_poll_timer.stop()
@@ -215,11 +276,38 @@ func _poll_for_ready() -> void:
 		_poll_timer.stop()
 		_poll_timer.queue_free()
 		_poll_timer = null
-		bridge_error.emit(
-			"Timed out after %.0f s waiting for Python engine.\n" % elapsed_s
-			+ "Script: %s\n" % _script_path
-			+ "Expected state file: %s" % _pipe_path_out
+
+		# Kill the hung process so its stderr (redirected to the error file)
+		# is flushed before we try to read it.
+		if _pid > 0 and OS.is_process_running(_pid):
+			OS.kill(_pid)
+
+		# Read whatever diagnostic output Python managed to write.
+		var error_detail := ""
+		if _error_log_path != "" and FileAccess.file_exists(_error_log_path):
+			error_detail = FileAccess.get_file_as_string(_error_log_path).strip_edges()
+
+		var hint := (
+			"Python started successfully but the game engine never initialised.\n"
+			if _python_alive
+			else "Python did not write any startup indicator within the timeout.\n"
 		)
+		var msg := (
+			"Timed out after %.0f s waiting for Python engine.\n" % elapsed_s
+			+ hint
+			+ "Script:     %s\n" % _script_path
+			+ "State file: %s\n" % _pipe_path_out
+		)
+		if error_detail != "":
+			msg += "\nPython output / traceback:\n" + error_detail
+		else:
+			msg += (
+				"\nNo error output captured.\n"
+				+ "To diagnose, run Python manually:\n"
+				+ "  %s %s --cmd-file /tmp/rz_cmd.json --state-file /tmp/rz_state.json"
+				% [python_path if python_path != "" else "python3", _script_path]
+			)
+		bridge_error.emit(msg)
 		return
 
 	# Emit a progress update once per second.
@@ -227,7 +315,7 @@ func _poll_for_ready() -> void:
 	var last_s := int((elapsed_ms - 100) / 1000)  # 100 ms = half the poll interval
 	var cur_s := int(elapsed_ms / 1000)
 	if cur_s != last_s and elapsed_ms > 200:
-		engine_status.emit("Waiting for Python engine... %.0f s" % elapsed_s)
+		engine_status.emit("Waiting for Python engine… %.0f s" % elapsed_s)
 
 
 # ── public API ───────────────────────────────────────────────────────
@@ -315,6 +403,11 @@ func _notification(what: int) -> void:
 
 
 func _cleanup() -> void:
+	# Wait for the preflight thread to finish (if still running) before
+	# tearing down the node, otherwise GDScript will assert.
+	if _preflight_thread and _preflight_thread.is_started():
+		_preflight_thread.wait_to_finish()
+	_preflight_thread = null
 	if _pid > 0:
 		OS.kill(_pid)
 		_pid = -1
