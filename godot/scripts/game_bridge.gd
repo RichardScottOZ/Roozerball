@@ -325,6 +325,14 @@ func _cleanup() -> void:
 
 
 ## Return a Python repr()-style string literal for embedding in -c snippets.
+## Escapes backslashes, quotes, and control characters that could break the
+## string context.
 static func _python_repr(s: String) -> String:
-	# Escape backslashes and single quotes, then wrap in single quotes.
-	return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+	var out := s
+	out = out.replace("\\", "\\\\")
+	out = out.replace("'", "\\'")
+	out = out.replace("\n", "\\n")
+	out = out.replace("\r", "\\r")
+	out = out.replace("\t", "\\t")
+	out = out.replace("\0", "\\0")
+	return "'" + out + "'"

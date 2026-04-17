@@ -289,10 +289,10 @@ if __name__ == "__main__":
     # itself might fail, so we can't rely on it).
     _state_path: Optional[str] = None
     _error_path: Optional[str] = None
-    for _i, _arg in enumerate(sys.argv[:-1]):
-        if _arg == "--state-file":
+    for _i, _arg in enumerate(sys.argv):
+        if _arg == "--state-file" and _i + 1 < len(sys.argv):
             _state_path = sys.argv[_i + 1]
-        elif _arg == "--error-file":
+        elif _arg == "--error-file" and _i + 1 < len(sys.argv):
             _error_path = sys.argv[_i + 1]
 
     # If no explicit --error-file, derive one from --state-file.
@@ -302,6 +302,8 @@ if __name__ == "__main__":
     # Redirect stderr to the error file so that even Python's own
     # unhandled-exception output (which normally goes to stderr) is
     # captured for Godot to read.
+    # The file handle is intentionally never closed — it replaces stderr
+    # for the remaining lifetime of the process.
     if _error_path:
         try:
             _err_dir = os.path.dirname(_error_path)
