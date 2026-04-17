@@ -173,6 +173,16 @@ def run_file_bridge(cmd_path: str, state_path: str, *, error_path: str = "") -> 
     """Poll *cmd_path* for commands, write responses to *state_path*."""
     import traceback as _traceback
 
+    # Write an early "alive" indicator so Godot knows Python has started
+    # and is still in its initialization phase.  This prevents a false
+    # timeout when the Game() constructor takes longer than expected.
+    # The Godot side recognises ``_bridge_starting`` and keeps polling
+    # rather than treating the file as a ready state.
+    try:
+        _write_json(state_path, {"_bridge_starting": True})
+    except Exception:  # noqa: BLE001 – best-effort; ignore write failures here
+        pass
+
     try:
         # Import engine modules here (inside try/except) so that any
         # ImportError or other startup failure is caught and written to the
