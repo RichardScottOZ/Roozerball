@@ -106,7 +106,7 @@ func _build_ui() -> void:
 	_bridge_status_label.add_theme_font_size_override("font_size", 16)
 	_bridge_status_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2))
 	_bridge_status_label.position = Vector2(660, 110)
-	_bridge_status_label.size = Vector2(600, 120)
+	_bridge_status_label.size = Vector2(600, 200)
 	_bridge_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(_bridge_status_label)
 
